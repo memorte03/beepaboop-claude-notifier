@@ -13,8 +13,8 @@ import Network
 final class HTTPServer: @unchecked Sendable {
     private let listener: NWListener
     private let store: NotificationStore
-    private let queue = DispatchQueue(label: "beepaboop.http")
-    /// Shared secret hooks must echo back in the x-beepaboop-token header. When nil
+    private let queue = DispatchQueue(label: "boopr.http")
+    /// Shared secret hooks must echo back in the x-boopr-token header. When nil
     /// (token file unwritable) auth is disabled rather than locking everyone out.
     private let token: String?
 

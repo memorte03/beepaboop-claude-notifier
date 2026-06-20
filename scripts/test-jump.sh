@@ -4,8 +4,8 @@
 #   scripts/test-jump.sh [pane-id]     # default: first pane running claude
 set -euo pipefail
 
-PORT="${BEEPABOOP_PORT:-7891}"
-TOKEN="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/beepaboop/token" 2>/dev/null || true)"
+PORT="${BOOPR_PORT:-7891}"
+TOKEN="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/boopr/token" 2>/dev/null || true)"
 TMUX_BIN="$(command -v tmux)" || { echo "tmux not found — this test needs tmux" >&2; exit 1; }
 SOCKET="$($TMUX_BIN display-message -p '#{socket_path}')"
 
@@ -21,7 +21,7 @@ window="$($TMUX_BIN -S "$SOCKET" display-message -p -t "$pane" '#{window_id}')"
 
 echo "targeting pane $pane (session $session, window $window)"
 
-curl -s -X POST "http://127.0.0.1:${PORT}/notify" -H 'Content-Type: application/json' -H "X-Beepaboop-Token: ${TOKEN}" -d "$(jq -nc \
+curl -s -X POST "http://127.0.0.1:${PORT}/notify" -H 'Content-Type: application/json' -H "X-Boopr-Token: ${TOKEN}" -d "$(jq -nc \
     --arg pane "$pane" --arg session "$session" --arg window "$window" \
     --arg socket "$SOCKET" --arg bin "$TMUX_BIN" \
     '{
@@ -29,7 +29,7 @@ curl -s -X POST "http://127.0.0.1:${PORT}/notify" -H 'Content-Type: application/
         kind: "stop",
         title: ("Jump test → session " + $session + ", pane " + $pane),
         context: "Click Open session: the right Ghostty window should come forward (even across Spaces) with this pane focused.",
-        repoName: "beepaboop",
+        repoName: "boopr",
         sessionId: "jump-test",
         terminalApp: "com.mitchellh.ghostty",
         tmuxSession: $session,

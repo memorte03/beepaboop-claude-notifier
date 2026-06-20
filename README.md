@@ -1,19 +1,19 @@
-<h1 align="center">Beepaboop</h1>
+<h1 align="center">Boopr</h1>
 
 <p align="center"><b>Desktop notifications for Claude Code.</b></p>
 
 <p align="center">
   <img src="docs/hero.png" width="560"
-       alt="Beepaboop showing a Claude Code permission prompt with a diff, an Approve/Deny choice, and a jump-to-session button">
+       alt="Boopr showing a Claude Code permission prompt with a diff, an Approve/Deny choice, and a jump-to-session button">
 </p>
 
-Beepaboop is a native macOS menu-bar app that pops a notification when
+Boopr is a native macOS menu-bar app that pops a notification when
 [Claude Code](https://claude.com/claude-code) **finishes**, **needs your input**,
 or **asks for permission** — on whatever Space you're currently on. Approve or
 deny right there, see the diff, and jump straight to the session.
 
 > [!IMPORTANT]
-> **Beepaboop is a work in progress.** For now, [build it from source](#guide) —
+> **Boopr is a work in progress.** For now, [build it from source](#guide) —
 > a drag-to-install `.dmg` is coming in the near future.
 > It's vibecoded on weekends, so issues and PRs may get sporadic attention —
 > I'll gradually polish the code quality by hand as the project matures. 🙂
@@ -41,12 +41,12 @@ deny right there, see the diff, and jump straight to the session.
 Build from source:
 
 ```sh
-git clone https://github.com/memorte03/beepaboop-claude-notifier
-cd beepaboop-claude-notifier
+git clone https://github.com/memorte03/boopr-claude-notifier
+cd boopr-claude-notifier
 scripts/install.sh
 ```
 
-This builds Beepaboop, installs it into `/Applications`, and wires its Claude
+This builds Boopr, installs it into `/Applications`, and wires its Claude
 Code hooks for you. On first launch, grant **Accessibility** and **Automation**
 when prompted — they're needed for jump-to-session.
 
@@ -70,12 +70,12 @@ Built with **Swift 6** (macOS 14+), SwiftUI + AppKit + AVFoundation + Network �
 no third-party dependencies.
 
 ```sh
-swift build && .build/debug/Beepaboop   # build & run from the repo
+swift build && .build/debug/Boopr   # build & run from the repo
 scripts/install.sh                       # build + install into /Applications
 scripts/make-dmg.sh                      # build the drag-to-install .dmg
 ```
 
-The app lives in `Sources/Beepaboop/`, the Claude Code hook scripts in `hooks/`,
+The app lives in `Sources/Boopr/`, the Claude Code hook scripts in `hooks/`,
 and packaging/signing helpers in `scripts/`.
 
 ## Contributing

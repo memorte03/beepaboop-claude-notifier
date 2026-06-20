@@ -3,7 +3,7 @@ import AppKit
 import ServiceManagement
 
 @main
-struct BeepaboopApp: App {
+struct BooprApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = NotificationStore()
     let iconRules = IconRuleStore()
     /// Same env var the hook scripts honor, so changing the port is one export.
-    let port: UInt16 = ProcessInfo.processInfo.environment["BEEPABOOP_PORT"]
+    let port: UInt16 = ProcessInfo.processInfo.environment["BOOPR_PORT"]
         .flatMap(UInt16.init) ?? 7891
     private var server: HTTPServer?
     private var overlay: OverlayWindow?
@@ -98,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let server = try HTTPServer(port: port, store: store, token: AuthToken.load())
             server.start()
             self.server = server
-            NSLog("beepaboop listening on 127.0.0.1:\(port)")
+            NSLog("boopr listening on 127.0.0.1:\(port)")
         } catch {
             NSLog("server failed: \(error)")
             store.serverError = "Server failed on port \(port) — already running elsewhere?"
@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.store.enqueue(NotifyRequest(
                         id: UUID().uuidString, kind: .error,
                         title: "Install jq for notifications to work",
-                        context: "Beepaboop's hooks need jq. Install it: brew install jq"
+                        context: "Boopr's hooks need jq. Install it: brew install jq"
                     ))
                 }
             }
@@ -149,7 +149,7 @@ struct MenuContent: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        Text("Beepaboop")
+        Text("Boopr")
             .font(.headline)
         Divider()
         if let err = store.serverError {
@@ -262,8 +262,8 @@ enum DebugFixtures {
         case .stop:
             store.enqueue(NotifyRequest(
                 id: id, kind: .stop,
-                repoName: "beepaboop", branch: "main",
-                cwd: NSHomeDirectory() + "/Workspace/beepaboop",
+                repoName: "boopr", branch: "main",
+                cwd: NSHomeDirectory() + "/Workspace/boopr",
                 sessionId: "debug", title: "Claude is done",
                 context: "Refactored auth flow, all tests passing.",
                 terminalPid: pid, terminalApp: "com.apple.Terminal", windowTitle: "claude"
@@ -271,7 +271,7 @@ enum DebugFixtures {
         case .idle:
             store.enqueue(NotifyRequest(
                 id: id, kind: .idle,
-                repoName: "beepaboop", branch: "feat/overlay",
+                repoName: "boopr", branch: "feat/overlay",
                 cwd: nil, sessionId: "debug",
                 title: "Claude is waiting for you",
                 context: "Pick one: a) split this PR, b) keep bundled, c) revert.",
@@ -282,8 +282,8 @@ enum DebugFixtures {
             // exercise the Approve/Deny resolve flow.
             let req = NotifyRequest(
                 id: id, kind: .permission,
-                repoName: "beepaboop", branch: "main",
-                cwd: NSHomeDirectory() + "/Workspace/beepaboop",
+                repoName: "boopr", branch: "main",
+                cwd: NSHomeDirectory() + "/Workspace/boopr",
                 sessionId: "debug",
                 title: "Run shell command?",
                 context: "$ rm -rf node_modules && npm install",
@@ -295,7 +295,7 @@ enum DebugFixtures {
         case .error:
             store.enqueue(NotifyRequest(
                 id: id, kind: .error,
-                repoName: "beepaboop", branch: "main",
+                repoName: "boopr", branch: "main",
                 title: "Tool failed",
                 context: "Bash exited 1: command not found: foo",
                 terminalPid: pid

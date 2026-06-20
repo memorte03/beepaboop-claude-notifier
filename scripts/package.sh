@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds a self-contained, sendable distribution of Beepaboop:
-#   dist/Beepaboop-<version>.zip
+# Builds a self-contained, sendable distribution of Boopr:
+#   dist/Boopr-<version>.zip
 #
 # The ZIP contains a prebuilt universal .app (no Swift toolchain needed on the
 # recipient's Mac), the hook scripts, and a double-clickable installer that
@@ -8,9 +8,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="Beepaboop"
-DISPLAY_NAME="Beepaboop"
-BUNDLE_ID="com.memorte03.beepaboop"
+APP_NAME="Boopr"
+DISPLAY_NAME="Boopr"
+BUNDLE_ID="com.memorte03.boopr"
 cd "$REPO_ROOT"
 
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist 2>/dev/null || echo 0.1.0)"
@@ -30,20 +30,20 @@ cp "${REPO_ROOT}/scripts/lib-sign.sh" "${REPO_ROOT}/scripts/make-signing-cert.sh
 echo "→ writing Install.command"
 cat > "${STAGE}/Install.command" <<'INSTALLER'
 #!/bin/bash
-# Installs Beepaboop: copies the app to /Applications, wires the Claude
+# Installs Boopr: copies the app to /Applications, wires the Claude
 # Code hooks, and launches it. Safe to re-run.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUPPORT="$HERE/support"
-APP_SRC="$HERE/Beepaboop.app"
-APP_DST="/Applications/Beepaboop.app"
-BUNDLE_ID="com.memorte03.beepaboop"
-CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/beepaboop"
+APP_SRC="$HERE/Boopr.app"
+APP_DST="/Applications/Boopr.app"
+BUNDLE_ID="com.memorte03.boopr"
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/boopr"
 HOOKS_DIR="$CONFIG/hooks"
 SETTINGS="$HOME/.claude/settings.json"
-MATCHER="${BEEPABOOP_PRETOOL_MATCHER:-Bash|Write|Edit|MultiEdit|NotebookEdit}"
+MATCHER="${BOOPR_PRETOOL_MATCHER:-Bash|Write|Edit|MultiEdit|NotebookEdit}"
 
-echo "Installing Beepaboop…"
+echo "Installing Boopr…"
 
 if ! command -v jq >/dev/null 2>&1; then
     echo
@@ -55,7 +55,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 echo "→ copying app to /Applications"
-pkill -x Beepaboop 2>/dev/null || true
+pkill -x Boopr 2>/dev/null || true
 sleep 0.4
 rm -rf "$APP_DST"
 # ditto overwrites cleanly — unlike `cp -R`, it won't nest the bundle inside an
@@ -88,7 +88,7 @@ if jq --arg notify "$HOOKS_DIR/notify.sh" \
    --arg permission "$HOOKS_DIR/permission.sh" \
    --arg matcher "$MATCHER" '
     def drop_ours(list):
-        (list // []) | map(select(((.hooks // []) | any(.command | test("beepaboop"))) | not));
+        (list // []) | map(select(((.hooks // []) | any(.command | test("boopr"))) | not));
     .hooks.Stop         = drop_ours(.hooks.Stop)         + [{matcher:"",        hooks:[{type:"command",command:$notify}]}]
   | .hooks.Notification = drop_ours(.hooks.Notification) + [{matcher:"",        hooks:[{type:"command",command:$notify}]}]
   | .hooks.PreToolUse   = drop_ours(.hooks.PreToolUse)   + [{matcher:$matcher,  hooks:[{type:"command",command:$permission}]}]
@@ -104,7 +104,7 @@ open "$APP_DST"
 
 cat <<EOF
 
-Done! Beepaboop is in your menu bar (the bell icon).
+Done! Boopr is in your menu bar (the bell icon).
 
 One-time setup:
   - Grant Accessibility and Automation when prompted (or from the menu
@@ -119,7 +119,7 @@ chmod +x "${STAGE}/Install.command"
 
 echo "→ writing README.txt"
 cat > "${STAGE}/README.txt" <<EOF
-Beepaboop — native macOS overlay for Claude Code
+Boopr — native macOS overlay for Claude Code
 ======================================================
 
 A menu-bar app that pops a notification when Claude Code finishes, needs
@@ -148,15 +148,15 @@ is cautious about it — that's why the installer clears the quarantine flag
 and signs it locally on your machine.
 
 UNINSTALL
-  Delete /Applications/Beepaboop.app and the folder
-  ~/.config/beepaboop, and remove the "beepaboop" hook entries
+  Delete /Applications/Boopr.app and the folder
+  ~/.config/boopr, and remove the "boopr" hook entries
   from ~/.claude/settings.json (a backup was saved as settings.json.bak).
 
 Version ${VERSION}
 EOF
 
 echo "→ zipping"
-ZIP="${DIST}/Beepaboop-${VERSION}.zip"
+ZIP="${DIST}/Boopr-${VERSION}.zip"
 ( cd "$DIST" && ditto -c -k --sequesterRsrc --keepParent "${DISPLAY_NAME}" "$ZIP" )
 
 echo

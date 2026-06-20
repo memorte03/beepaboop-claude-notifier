@@ -7,8 +7,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=beepaboop-common.sh
-source "$SCRIPT_DIR/beepaboop-common.sh"
+# shellcheck source=boopr-common.sh
+source "$SCRIPT_DIR/boopr-common.sh"
 
 tool_name="$(cn_tool_name)"
 diff_preview=""
@@ -176,7 +176,7 @@ payload="$(cn_build_payload "$id" "permission" "$title" "$context" \
 response="$(curl --silent --show-error --max-time 15 \
                  -X POST "$CN_URL/permission" \
                  -H 'Content-Type: application/json' \
-                 -H "X-Beepaboop-Token: ${CN_TOKEN}" \
+                 -H "X-Boopr-Token: ${CN_TOKEN}" \
                  -d "$payload" 2>/dev/null || true)"
 
 decision="$(jq -r '.decision // "ask"' <<<"$response" 2>/dev/null || echo "ask")"

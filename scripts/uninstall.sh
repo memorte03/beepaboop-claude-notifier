@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Removes Beepaboop completely: app bundle, hook scripts, token/config,
+# Removes Boopr completely: app bundle, hook scripts, token/config,
 # and the hook entries in ~/.claude/settings.json (other hooks are preserved).
 set -euo pipefail
 
-DISPLAY_NAME="Beepaboop"
+DISPLAY_NAME="Boopr"
 APP_BUNDLE="/Applications/${DISPLAY_NAME}.app"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/beepaboop"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boopr"
 CLAUDE_SETTINGS="${HOME}/.claude/settings.json"
 
 echo "→ stopping app"
-pkill -x Beepaboop 2>/dev/null || true   # exact name, not a command-line scan
+pkill -x Boopr 2>/dev/null || true   # exact name, not a command-line scan
 sleep 0.3
 
 echo "→ removing ${APP_BUNDLE}"
@@ -21,7 +21,7 @@ if [[ -f "$CLAUDE_SETTINGS" ]] && command -v jq >/dev/null 2>&1; then
     jq '
         def drop_ours(list):
             (list // []) | map(select(
-                ((.hooks // []) | any(.command | test("beepaboop"))) | not
+                ((.hooks // []) | any(.command | test("boopr"))) | not
             ));
         if .hooks then
             .hooks.Stop         = drop_ours(.hooks.Stop)

@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Beepaboop</string>
+    <string>Boopr</string>
     <key>CFBundleDisplayName</key>
-    <string>Beepaboop</string>
+    <string>Boopr</string>
     <key>CFBundleIdentifier</key>
-    <string>com.memorte03.beepaboop</string>
+    <string>com.memorte03.boopr</string>
     <key>CFBundleExecutable</key>
-    <string>Beepaboop</string>
+    <string>Boopr</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
@@ -27,6 +27,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Beepaboop controls Ghostty to focus the terminal window of the Claude session you jump to.</string>
+    <string>Boopr controls Ghostty to focus the terminal window of the Claude session you jump to.</string>
 </dict>
 </plist>

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Builds the universal, signed Beepaboop.app into the path given as $1.
+# Builds the universal, signed Boopr.app into the path given as $1.
 # Shared by package.sh (ZIP) and make-dmg.sh (DMG). The hook scripts are bundled
 # into Contents/Resources/hooks so the app can self-install them on first launch.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="Beepaboop"
-BUNDLE_ID="com.memorte03.beepaboop"
+APP_NAME="Boopr"
+BUNDLE_ID="com.memorte03.boopr"
 OUT="${1:?usage: build-app.sh <output-path.app>}"
 cd "$REPO_ROOT"
 

@@ -4,7 +4,7 @@
 # Automation) grants survive rebuilds AND relaunches. Ad-hoc signatures have no
 # stable code identity, so TCC keeps re-prompting even though Settings shows the
 # permission as granted — create the cert once with scripts/make-signing-cert.sh.
-SIGNING_CERT_NAME="Beepaboop Dev"
+SIGNING_CERT_NAME="Boopr Dev"
 
 cn_sign_identity() {
     if security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SIGNING_CERT_NAME"; then

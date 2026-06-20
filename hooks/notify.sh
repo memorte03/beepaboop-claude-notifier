@@ -4,8 +4,8 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=beepaboop-common.sh
-source "$SCRIPT_DIR/beepaboop-common.sh"
+# shellcheck source=boopr-common.sh
+source "$SCRIPT_DIR/boopr-common.sh"
 
 event="$(cn_hook_event)"
 case "$event" in
@@ -31,7 +31,7 @@ payload="$(cn_build_payload "$(cn_uuid)" "$kind" "$title" "$context")"
 curl --silent --show-error --max-time 2 \
      -X POST "$CN_URL/notify" \
      -H 'Content-Type: application/json' \
-     -H "X-Beepaboop-Token: ${CN_TOKEN}" \
+     -H "X-Boopr-Token: ${CN_TOKEN}" \
      -d "$payload" >/dev/null 2>&1 || true
 
 exit 0

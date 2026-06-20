@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Builds Beepaboop, packages it as a proper .app bundle, installs it into
+# Builds Boopr, packages it as a proper .app bundle, installs it into
 # /Applications, copies the hook scripts to a stable location, and wires them
 # into ~/.claude/settings.json. Idempotent: safe to re-run after updates.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="Beepaboop"
-DISPLAY_NAME="Beepaboop"
-BUNDLE_ID="com.memorte03.beepaboop"
+APP_NAME="Boopr"
+DISPLAY_NAME="Boopr"
+BUNDLE_ID="com.memorte03.boopr"
 INSTALL_DIR="/Applications"
 APP_BUNDLE="${INSTALL_DIR}/${DISPLAY_NAME}.app"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/beepaboop"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/boopr"
 HOOKS_DIR="${CONFIG_DIR}/hooks"
 CLAUDE_SETTINGS="${HOME}/.claude/settings.json"
 # Tools that surface an overlay Approve/Deny prompt. Adjust to taste, re-run.
-PRETOOL_MATCHER="${BEEPABOOP_PRETOOL_MATCHER:-Bash|Write|Edit|MultiEdit|NotebookEdit}"
+PRETOOL_MATCHER="${BOOPR_PRETOOL_MATCHER:-Bash|Write|Edit|MultiEdit|NotebookEdit}"
 
 # ── prerequisites ───────────────────────────────────────────────────────────
 if ! command -v jq >/dev/null 2>&1; then
@@ -71,13 +71,13 @@ cn_sign_bundle "$APP_BUNDLE" "$BUNDLE_ID"
 # ── hooks: copy to a stable path that survives moving/deleting the repo ─────
 echo "→ installing hooks to ${HOOKS_DIR}"
 mkdir -p "$HOOKS_DIR"
-cp "${REPO_ROOT}/hooks/beepaboop-common.sh" \
+cp "${REPO_ROOT}/hooks/boopr-common.sh" \
    "${REPO_ROOT}/hooks/notify.sh" \
    "${REPO_ROOT}/hooks/permission.sh" "$HOOKS_DIR/"
 chmod +x "${HOOKS_DIR}/notify.sh" "${HOOKS_DIR}/permission.sh"
 
 # ── wire hooks into ~/.claude/settings.json ─────────────────────────────────
-# Strategy: drop any existing beepaboop entries (old paths included),
+# Strategy: drop any existing boopr entries (old paths included),
 # then append fresh ones — re-running always converges on the current config.
 echo "→ updating ${CLAUDE_SETTINGS}"
 mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
@@ -89,7 +89,7 @@ if jq --arg notify "${HOOKS_DIR}/notify.sh" \
    --arg matcher "$PRETOOL_MATCHER" '
     def drop_ours(list):
         (list // []) | map(select(
-            ((.hooks // []) | any(.command | test("beepaboop"))) | not
+            ((.hooks // []) | any(.command | test("boopr"))) | not
         ));
     .hooks.Stop         = drop_ours(.hooks.Stop)
                           + [{matcher: "", hooks: [{type: "command", command: $notify}]}]
@@ -117,9 +117,9 @@ installed:
 
 next steps:
   - grant Accessibility when prompted (and Automation on first jump)
-  - menu bar → Beepaboop → "Launch at Login" to enable auto-start
+  - menu bar → Boopr → "Launch at Login" to enable auto-start
   - permission prompts cover: ${PRETOOL_MATCHER}
-    (re-run with BEEPABOOP_PRETOOL_MATCHER="..." to change)
+    (re-run with BOOPR_PRETOOL_MATCHER="..." to change)
 
 uninstall any time with: scripts/uninstall.sh
 EOF

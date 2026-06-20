@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Creates a stable self-signed code-signing certificate in your login keychain,
-# so macOS TCC (Accessibility, Automation) grants for Beepaboop persist
+# so macOS TCC (Accessibility, Automation) grants for Boopr persist
 # across rebuilds and relaunches.
 #
 # WHY: ad-hoc-signed apps have no stable code identity. macOS ties a TCC grant
@@ -16,7 +16,7 @@
 # that's expected. Run from a real terminal so the prompts can appear.
 set -euo pipefail
 
-CERT_NAME="Beepaboop Dev"
+CERT_NAME="Boopr Dev"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
 if security find-identity -v -p codesigning 2>/dev/null | grep -qF "$CERT_NAME"; then

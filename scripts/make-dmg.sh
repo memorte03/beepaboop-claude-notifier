@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Builds a drag-to-install disk image: dist/Beepaboop-<version>.dmg
+# Builds a drag-to-install disk image: dist/Boopr-<version>.dmg
 #
-# The recipient opens the .dmg, drags Beepaboop onto the Applications
+# The recipient opens the .dmg, drags Boopr onto the Applications
 # alias, and launches it — the app installs its own Claude Code hooks on first
 # launch (see Bootstrap.swift), so there's no terminal step.
 set -euo pipefail
@@ -9,11 +9,11 @@ set -euo pipefail
 command -v hdiutil >/dev/null 2>&1 || { echo "error: hdiutil not found (macOS only)" >&2; exit 1; }
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DISPLAY_NAME="Beepaboop"
+DISPLAY_NAME="Boopr"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${REPO_ROOT}/Resources/Info.plist" 2>/dev/null || echo 0.1.0)"
 DIST="${REPO_ROOT}/dist"
 STAGE="${DIST}/dmg-stage"
-DMG="${DIST}/Beepaboop-${VERSION}.dmg"
+DMG="${DIST}/Boopr-${VERSION}.dmg"
 
 rm -rf "$STAGE" "$DMG"
 mkdir -p "$STAGE"
@@ -23,16 +23,16 @@ mkdir -p "$STAGE"
 echo "→ adding Applications alias + README"
 ln -s /Applications "${STAGE}/Applications"
 cat > "${STAGE}/READ ME FIRST.txt" <<EOF
-Beepaboop ${VERSION}
+Boopr ${VERSION}
 
 INSTALL
-  1. Drag "Beepaboop" onto the Applications folder (here in this window).
+  1. Drag "Boopr" onto the Applications folder (here in this window).
   2. Open it from Applications (or Launchpad).
 
   The first time, macOS will warn that it's from an unidentified developer
   (this app isn't notarized by Apple). To allow it:
      - Go to  System Settings > Privacy & Security
-     - Scroll down to the message about "Beepaboop" and click "Open Anyway".
+     - Scroll down to the message about "Boopr" and click "Open Anyway".
   You only do this once.
 
 REQUIREMENTS

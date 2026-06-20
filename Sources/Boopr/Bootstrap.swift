@@ -80,7 +80,7 @@ enum Bootstrap {
         let fm = FileManager.default
         do {
             try fm.createDirectory(at: hooksDir, withIntermediateDirectories: true)
-            for name in ["beepaboop-common.sh", "notify.sh", "permission.sh"] {
+            for name in ["boopr-common.sh", "notify.sh", "permission.sh"] {
                 let from = src.appendingPathComponent(name)
                 let to = hooksDir.appendingPathComponent(name)
                 guard fm.fileExists(atPath: from.path) else { continue }
@@ -96,7 +96,7 @@ enum Bootstrap {
     }
 
     /// Merges our hook entries into ~/.claude/settings.json, dropping any prior
-    /// beepaboop entries first (so repeated runs converge). Pure
+    /// boopr entries first (so repeated runs converge). Pure
     /// Foundation — no jq needed for setup.
     @discardableResult
     private static func wireSettings() -> Bool {
@@ -123,7 +123,7 @@ enum Bootstrap {
             let list = value as? [[String: Any]] ?? []
             return list.filter { entry in
                 let inner = entry["hooks"] as? [[String: Any]] ?? []
-                return !inner.contains { ($0["command"] as? String ?? "").contains("beepaboop") }
+                return !inner.contains { ($0["command"] as? String ?? "").contains("boopr") }
             }
         }
 

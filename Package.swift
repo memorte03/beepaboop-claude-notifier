@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Beepaboop",
+    name: "Boopr",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "Beepaboop",
-            path: "Sources/Beepaboop"
+            name: "Boopr",
+            path: "Sources/Boopr"
         )
     ]
 )

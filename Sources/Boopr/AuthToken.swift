@@ -7,13 +7,13 @@ import Foundation
 /// overlay notifications, including fake permission prompts. The token lives
 /// in a 0600 file only the user can read; hooks send it back as a header.
 enum AuthToken {
-    static let header = "x-beepaboop-token"
+    static let header = "x-boopr-token"
 
     static var configDir: URL {
         let base = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
             .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config")
-        return base.appendingPathComponent("beepaboop")
+        return base.appendingPathComponent("boopr")
     }
 
     static var tokenFile: URL { configDir.appendingPathComponent("token") }

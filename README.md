@@ -1,51 +1,44 @@
-# Beepaboop
+<h1 align="center">Beepaboop</h1>
 
-> **Desktop notifications for Claude Code** — a native macOS menu-bar app that
-> alerts you when Claude Code finishes, needs input, or asks permission, with
-> inline approve/deny and one-click jump-to-session. (a Claude Code notifier /
-> notification overlay for macOS)
+<p align="center"><b>Desktop notifications for Claude Code.</b></p>
 
-A native macOS overlay for [Claude Code](https://claude.com/claude-code). When
-Claude finishes, needs input, or asks for permission — and you're on another
-Space, in another app, or just not looking — a LookAway-style card slides in
-on **whatever Space you're currently on**:
+<p align="center">
+  <img src="docs/hero.png" width="560"
+       alt="Beepaboop showing a Claude Code permission prompt with a diff, an Approve/Deny choice, and a jump-to-session button">
+</p>
 
-- Shows which session fired (**repo · branch**), the state (done / waiting /
-  permission), and a one-line context.
-- **Approve / Deny** permission requests right from the overlay, with a diff
-  preview for file edits — no window switching.
-- **Jump to session**: one click raises the exact terminal window (across
-  Spaces) and focuses the exact tmux pane the session lives in.
-- **Missed-action pills**: notifications you don't act on demote into compact
-  persistent pills at the top of the screen (project icon · repo · branch ·
-  state · age). Click to jump, ✕ to dismiss — or they clear themselves when
-  you visit the pane or the session sends a newer event.
-- **Per-project icons**: regex-on-path rules (Settings → Project Icons) put
-  your project's logo on its overlays and pills.
-- Distinct synthesized chimes per event kind; everything configurable from
-  the Settings window (⌘,).
+Beepaboop is a native macOS menu-bar app that pops a notification when
+[Claude Code](https://claude.com/claude-code) **finishes**, **needs your input**,
+or **asks for permission** — on whatever Space you're currently on. Approve or
+deny right there, see the diff, and jump straight to the session.
 
-<!-- TODO: screenshot/GIF of the overlay here -->
+> [!IMPORTANT]
+> **Beepaboop is a work in progress.** For now, [build it from source](#guide) —
+> a drag-to-install `.dmg` is coming in the near future.
+> It's vibecoded on weekends, so issues and PRs may get sporadic attention —
+> I'll gradually polish the code quality by hand as the project matures. 🙂
 
-## Requirements
+## Features
 
-- macOS 14+
-- [`jq`](https://jqlang.github.io/jq/) — `brew install jq` (hooks are built with it)
-- Swift 6 toolchain (Xcode or Command Line Tools) to build from source
-- Optional, for the best jump-to-session experience: tmux + [Ghostty](https://ghostty.org) ≥ 1.3
+- 🔔 **On-screen alerts** the moment Claude Code finishes, waits, or asks permission — wherever you are.
+- ✅ **Approve / Deny inline**, with a diff preview for file edits — no window switching.
+- 🎯 **Jump to session** — one click focuses the exact terminal window and tmux pane.
+- 📌 **Missed-action pills** — notifications you don't catch wait at the top of the screen until you deal with them.
+- 🖼️ **Per-project icons** — give each project its own logo so you know what fired at a glance.
+- 🔊 **Subtle chimes** per event kind, all toggleable.
 
-## Install
+## Installation
 
-### From a release (drag-to-install)
+### Requirements
 
-Open `Beepaboop-<version>.dmg`, drag **Beepaboop** onto the
-Applications folder, and launch it. The app installs its own Claude Code hooks
-on first launch — no terminal step. Because the app isn't notarized by Apple,
-the first launch needs a one-time approval in **System Settings → Privacy &
-Security → Open Anyway**. Install `jq` (`brew install jq`) for the hooks to run;
-the menu bar warns if it's missing.
+- macOS 14 (Sonoma) or newer
+- [Claude Code](https://claude.com/claude-code)
+- [`jq`](https://jqlang.github.io/jq/) — `brew install jq`
+- *Optional, for the best jump-to-session:* tmux + [Ghostty](https://ghostty.org) 1.3+
 
-### From source
+### Guide
+
+Build from source:
 
 ```sh
 git clone https://github.com/memorte03/beepaboop-claude-notifier
@@ -53,168 +46,44 @@ cd beepaboop-claude-notifier
 scripts/install.sh
 ```
 
-The script builds the app, installs `Beepaboop.app` into `/Applications`,
-copies the hook scripts to `~/.config/beepaboop/hooks/`, and wires them
-into `~/.claude/settings.json` (a backup is written next to it). Re-run it any
-time to update; it converges instead of duplicating entries.
+This builds Beepaboop, installs it into `/Applications`, and wires its Claude
+Code hooks for you. On first launch, grant **Accessibility** and **Automation**
+when prompted — they're needed for jump-to-session.
 
-### Building a distributable
+Uninstall any time with `scripts/uninstall.sh`.
 
-- `scripts/make-dmg.sh` → `dist/Beepaboop-<version>.dmg` (universal,
-  drag-to-install — send this to others).
-- `scripts/package.sh` → `dist/Beepaboop-<version>.zip` (app + a
-  `bash`-run installer that sidesteps the Gatekeeper prompt).
-- For permissions that persist across rebuilds, run `scripts/make-signing-cert.sh`
-  once; the build scripts then sign with that stable identity instead of ad-hoc.
+## Usage
 
-By default the permission overlay covers `Bash|Write|Edit|MultiEdit|NotebookEdit`.
-Change it with:
+Just keep working in Claude Code. When it finishes, waits, or asks permission, a
+card slides in on your current Space:
 
-```sh
-BEEPABOOP_PRETOOL_MATCHER="Bash|Write" scripts/install.sh
-```
+- **Approve / Deny** permission prompts right from the card (edits show a diff).
+- Click the **↗ jump** button to focus that terminal session.
+- Missed it? It becomes a **pill** at the top of the screen — click to jump, **✕** to dismiss. Pills also clear themselves once you visit the session.
 
-Uninstall completely with `scripts/uninstall.sh`.
-
-### Permissions
-
-macOS will prompt for two things:
-
-- **Accessibility** — at first launch. Used to raise terminal windows and read
-  window titles. (System Settings → Privacy & Security → Accessibility)
-- **Automation → Ghostty** — at your first jump. Used to raise the right
-  Ghostty window across Spaces. (System Settings → Privacy & Security → Automation)
-
-The menu bar icon (✨) → **Permissions** shows the live status of both, with
-shortcuts into System Settings.
-
-## How it works
-
-```
-┌────────────────────┐  POST /notify       ┌──────────────────┐
-│ hook scripts       │ ──────────────────▶ │  Beepaboop.app   │
-│ (~/.config/        │  POST /permission   │  - HTTP on :7891  │
-│  beepaboop/)       │ ◀──── decision ──── │  - SwiftUI overlay │
-│                    │                     │  - menu bar       │
-└────────────────────┘                     └──────────────────┘
-```
-
-- `notify.sh` (Stop / Notification hooks) is fire-and-forget.
-- `permission.sh` (PreToolUse hook) blocks until you click Approve / Deny in
-  the overlay, then emits the `permissionDecision` JSON Claude Code expects.
-  If you don't click within ~10 s (or the app isn't running), it falls back to
-  `"ask"` and Claude Code shows its native prompt — the notifier failing never
-  blocks you.
-- Requests are authenticated with a random token the app generates at first
-  launch (`~/.config/beepaboop/token`, mode 0600). Without it, any local
-  process or webpage could spoof overlay prompts via a POST to localhost.
-
-### Jump to session
-
-When the session runs inside tmux, the jump is deterministic: the hook
-captures the pane identity (`$TMUX_PANE`, socket, binary), and on click the
-app selects the exact window+pane, maps the session to its client tty
-(attaching a client if the session is detached), briefly writes a unique title
-marker (OSC 2) to that tty, and raises the marked window — via Ghostty ≥ 1.3
-AppleScript, which sees windows on **every** Space. Other terminals (or denied
-Automation) fall back to the Accessibility API, which macOS limits to windows
-on the current Space.
-
-Approve/Deny answers are likewise delivered with `tmux send-keys` straight to
-the pane — no synthesized keystrokes landing in the wrong window.
-
-Outside tmux, the jump activates the terminal app and best-effort matches the
-window by title.
-
-### Approve / Deny and your existing permission rules
-
-`permission.sh` checks `permissions.allow` in your Claude settings first and
-auto-allows matching tools without showing an overlay, so pre-approved tools
-stay silent. If a `permissions.deny` rule matches, the hook steps aside
-(`"ask"`) and lets Claude Code enforce it. The rule matcher is a close — but
-not perfect — reimplementation of Claude Code's; if a rule behaves
-unexpectedly, the failure mode is always an extra prompt, never a silent allow.
-
-## Menu bar
-
-- Server status (or a visible error if the port is taken)
-- **Permissions** — live Accessibility / Automation status
-- **Notifications** — per-kind toggles (done / waiting / permission / errors /
-  info) and chime mute; persisted across restarts
-- **Launch at Login**
-- **Debug** — fire test notifications, preview chimes
-
-## Hook payload contract
-
-`/notify` and `/permission` accept the same JSON shape (header
-`X-Beepaboop-Token: <contents of ~/.config/beepaboop/token>` required):
-
-| field           | source                                                            |
-| --------------- | ----------------------------------------------------------------- |
-| `id`            | uuid (correlation key for `/permission` responses)                |
-| `kind`          | `stop` \| `idle` \| `permission` \| `info` \| `error`             |
-| `title`         | shown bold in the overlay                                         |
-| `context`       | one-line context (tool input, last message, etc.)                 |
-| `repoName`      | `basename git rev-parse --show-toplevel`                          |
-| `branch`        | `git rev-parse --abbrev-ref HEAD`                                 |
-| `cwd`           | Claude Code's `cwd`                                               |
-| `sessionId`     | Claude Code's `session_id`                                        |
-| `toolName`      | tool being approved (for permissions)                             |
-| `diffPreview`   | short unified diff shown for Edit/Write/MultiEdit                 |
-| `terminalPid`   | terminal app PID found by walking ancestors of the hook script    |
-| `terminalApp`   | bundle id, e.g. `com.mitchellh.ghostty`                           |
-| `windowTitle`   | best-effort window title for the AX-based jump (fallback path)    |
-| `tmuxSession`   | tmux session name (`#{session_name}`)                             |
-| `tmuxPane`      | tmux pane id (`$TMUX_PANE`, e.g. `%4`)                            |
-| `tmuxWindowId`  | tmux window id (`#{window_id}`, e.g. `@2`)                        |
-| `tmuxSocket`    | tmux server socket path (first field of `$TMUX`)                  |
-| `tmuxBin`       | absolute path to the tmux binary                                  |
-
-`/permission` blocks until the overlay returns:
-
-```json
-{ "decision": "allow" | "deny" | "ask", "reason": "optional" }
-```
-
-## Configuration
-
-- **Port**: `export BEEPABOOP_PORT=7777` — read by both the app and the
-  hooks (default 7891).
-- **Permission timeout**: `defaults write com.morte.beepaboop permissionTimeout 12`
-  (seconds, max 14 — the hooks' HTTP timeout is 15 s).
-- **Notification kinds / chimes**: menu bar → Notifications.
-
-## Troubleshooting
-
-- **No overlays at all** — check the menu bar icon: does it show a server
-  error? Is the app running? `curl http://127.0.0.1:7891/health` prints a JSON
-  status (`ok`, current/queued/pending counts). Check `jq` is installed.
-- **Overlays work but Jump doesn't switch Spaces** — menu bar → Permissions:
-  Automation (Ghostty) must be granted, and Ghostty must be ≥ 1.3. Without it,
-  the fallback can only raise windows on the current Space.
-- **Permission overlay never appears for some tool** — the tool probably
-  matches a `permissions.allow` rule (auto-allowed, silent by design) or isn't
-  in the PreToolUse matcher (re-run install with `BEEPABOOP_PRETOOL_MATCHER`).
-- **403 from curl when testing by hand** — send the token:
-  `-H "X-Beepaboop-Token: $(cat ~/.config/beepaboop/token)"`.
+Everything is configurable from the menu-bar bell → **Settings**: which events
+notify you, chime volume, and per-project icons.
 
 ## Development
 
+Built with **Swift 6** (macOS 14+), SwiftUI + AppKit + AVFoundation + Network —
+no third-party dependencies.
+
 ```sh
-swift build && .build/debug/Beepaboop   # run from the repo, no bundle
-scripts/test-jump.sh [pane-id]               # fire a jump-test notification
-swift scripts/make-icon.swift                # regenerate the iconset
+swift build && .build/debug/Beepaboop   # build & run from the repo
+scripts/install.sh                       # build + install into /Applications
+scripts/make-dmg.sh                      # build the drag-to-install .dmg
 ```
 
-The app logs with `NSLog`; when launched from a terminal, stderr is the place
-to look.
+The app lives in `Sources/Beepaboop/`, the Claude Code hook scripts in `hooks/`,
+and packaging/signing helpers in `scripts/`.
 
-## Roadmap
+## Contributing
 
-- Reply-back input on the overlay (send a follow-up prompt into the session)
-- Per-session history / "show me what just finished"
-- Prebuilt, notarized releases
+Issues and pull requests are welcome — bug reports, feature ideas, and
+terminal/Ghostty compatibility notes especially. Please open an issue to discuss
+anything substantial before a large PR.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © morte

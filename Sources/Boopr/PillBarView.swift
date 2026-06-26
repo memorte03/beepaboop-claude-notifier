@@ -11,6 +11,15 @@ struct PillBarView: View {
 
     private let maxVisible = 5
 
+    /// Transparent room reserved around the pills so their drop shadow
+    /// (radius 10, offset y+5) isn't clipped by the window bounds. The shadow
+    /// barely extends upward, so the top stays tight; bottom/sides get the full
+    /// radius (+offset). `padBottom` is read by App.syncPillBar to keep the
+    /// card's *visible* gap fixed regardless of this reserved space.
+    static let padTop: CGFloat = 8
+    static let padBottom: CGFloat = 16
+    static let padSide: CGFloat = 16
+
     var body: some View {
         HStack(spacing: 8) {
             ForEach(store.pending.prefix(maxVisible)) { action in
@@ -27,7 +36,8 @@ struct PillBarView: View {
                     .background(Capsule().fill(.white.opacity(0.10)))
             }
         }
-        .padding(8)
+        .padding(EdgeInsets(top: Self.padTop, leading: Self.padSide,
+                            bottom: Self.padBottom, trailing: Self.padSide))
         .fixedSize()
         .background(
             GeometryReader { proxy in

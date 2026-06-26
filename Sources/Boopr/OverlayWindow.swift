@@ -38,9 +38,10 @@ final class OverlayWindow: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    private var mouseMonitor: Any?
-    private var spaceObserver: NSObjectProtocol?
-    private var currentScreen: NSScreen?
+    private lazy var follower = ScreenFollower(window: self) { [weak self] screen in
+        self?.targetTopCenter(on: screen)
+    }
+    private var currentScreen: NSScreen? { follower.currentScreen }
 
     /// Extra distance from the top, set while the pill bar is visible so the
     /// card slides in below it instead of overlapping.
@@ -94,21 +95,21 @@ final class OverlayWindow: NSPanel {
     /// Just position + orderFront. SwiftUI owns the animation.
     func show() {
         setContentSize(NSSize(width: OverlayWindow.panelWidth, height: desiredHeight))
-        currentScreen = ScreenUtil.underMouse()
+        follower.anchorToMouse()
         if let target = targetTopCenter(on: currentScreen) {
             setFrameOrigin(target)
             Debug.log("overlay show → screen=\(currentScreen?.localizedName ?? "?") target=\(NSStringFromPoint(target))")
         }
         alphaValue = 1
         orderFrontRegardless()
-        startMouseTracking()
+        follower.start()
     }
 
     /// Order front + immediately order out, so the window's surface/layer
     /// is initialized before the first user-visible show. Avoids first-show
     /// SwiftUI transition glitches.
     func prewarm() {
-        currentScreen = ScreenUtil.underMouse()
+        follower.anchorToMouse()
         if let target = targetTopCenter(on: currentScreen) { setFrameOrigin(target) }
         alphaValue = 0
         orderFrontRegardless()
@@ -118,80 +119,7 @@ final class OverlayWindow: NSPanel {
     }
 
     override func orderOut(_ sender: Any?) {
-        stopMouseTracking()
+        follower.stop()
         super.orderOut(sender)
-    }
-
-    // MARK: - dynamic screen follow
-
-    private func startMouseTracking() {
-        // Following the cursor between displays only matters with >1 screen, so
-        // skip the high-frequency per-mouse-move global monitor on a single
-        // display (it allocates a CGEvent and scans screens on every move).
-        if mouseMonitor == nil, NSScreen.screens.count > 1 {
-            mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
-                MainActor.assumeIsolated { self?.followMouseToCurrentScreen() }
-            }
-        }
-        if spaceObserver == nil {
-            spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
-                forName: NSWorkspace.activeSpaceDidChangeNotification,
-                object: nil, queue: .main
-            ) { [weak self] _ in
-                // After a Space switch, re-anchor to wherever the mouse is on
-                // the new Space, and re-assert visibility so canJoinAllSpaces
-                // shows us on top.
-                MainActor.assumeIsolated {
-                    self?.followMouseToCurrentScreen(force: true)
-                    self?.orderFrontRegardless()
-                }
-            }
-        }
-    }
-
-    private func stopMouseTracking() {
-        if let m = mouseMonitor {
-            NSEvent.removeMonitor(m)
-            mouseMonitor = nil
-        }
-        if let o = spaceObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(o)
-            spaceObserver = nil
-        }
-    }
-
-    private func followMouseToCurrentScreen(force: Bool = false) {
-        guard let screen = ScreenUtil.underMouse() else { return }
-        if !force, screen.frame == currentScreen?.frame { return }
-        guard let target = targetTopCenter(on: screen) else { return }
-        currentScreen = screen
-        Debug.log("overlay follow → screen=\(screen.localizedName) target=\(NSStringFromPoint(target))")
-
-        if force {
-            // Space switch — snap without fade, the cross-Space behaviour
-            // already hides/shows the window for us.
-            setFrameOrigin(target)
-            return
-        }
-
-        // Hide on the current screen, snap to the new screen, fade back in.
-        // This avoids the panel "sliding" across the gap between monitors,
-        // which looks broken on multi-display setups.
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.14
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            self.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            // NSAnimationContext completion runs on the main thread.
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.setFrameOrigin(target)
-                NSAnimationContext.runAnimationGroup { ctx in
-                    ctx.duration = 0.18
-                    ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                    self.animator().alphaValue = 1
-                }
-            }
-        })
     }
 }

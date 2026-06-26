@@ -138,7 +138,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             overlay?.topOffset = 0
         } else {
             bar.show()
-            overlay?.topOffset = bar.frame.height + 2
+            // Keep a small, fixed gap between the pill bar's VISIBLE bottom and
+            // the card's visible top. `bar.frame.height` includes the pill view's
+            // transparent bottom shadow inset, which isn't part of the visible
+            // bar — subtract it. The −22 folds the fixed offsets (pill top margin
+            // 10 − card .top padding 16 − overlay margin 16) so the *visible* gap
+            // lands at `pillToCardGap` no matter how much shadow room we reserve.
+            let pillToCardGap: CGFloat = 18
+            overlay?.topOffset = bar.frame.height - PillBarView.padBottom + pillToCardGap - 22
         }
     }
 }

@@ -6,8 +6,9 @@ import SwiftUI
 /// OverlayWindow but sized to fit its content).
 final class PillBarWindow: NSPanel {
     private var contentSize = NSSize(width: 10, height: 10)
-    private var currentScreen: NSScreen?
-    private var spaceObserver: NSObjectProtocol?
+    private lazy var follower = ScreenFollower(window: self) { [weak self] screen in
+        self?.originForScreen(screen)
+    }
     /// Extra distance from the top, set while the overlay card is visible so
     /// the bar sits below it instead of overlapping.
     var topOffset: CGFloat = 0 {
@@ -43,39 +44,30 @@ final class PillBarWindow: NSPanel {
     }
 
     func show() {
-        currentScreen = ScreenUtil.underMouse()
+        follower.anchorToMouse()
         reposition()
         orderFrontRegardless()
-        if spaceObserver == nil {
-            spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
-                forName: NSWorkspace.activeSpaceDidChangeNotification,
-                object: nil, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in
-                    guard let self, self.isVisible else { return }
-                    self.currentScreen = ScreenUtil.underMouse()
-                    self.reposition()
-                    self.orderFrontRegardless()
-                }
-            }
-        }
+        follower.start()
     }
 
     func hide() {
-        if let o = spaceObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(o)
-            spaceObserver = nil
-        }
+        follower.stop()
         orderOut(nil)
     }
 
-    private func reposition() {
-        guard let frame = (currentScreen ?? ScreenUtil.underMouse())?.visibleFrame else { return }
+    /// Top-center anchor on a given screen (origin only; size is contentSize).
+    private func originForScreen(_ screen: NSScreen) -> NSPoint? {
+        let frame = screen.visibleFrame
         let margin: CGFloat = 10
-        let origin = NSPoint(
+        return NSPoint(
             x: frame.midX - contentSize.width / 2,
             y: frame.maxY - contentSize.height - margin - topOffset
         )
+    }
+
+    private func reposition() {
+        guard let screen = follower.currentScreen ?? ScreenUtil.underMouse(),
+              let origin = originForScreen(screen) else { return }
         setFrame(NSRect(origin: origin, size: contentSize), display: true)
     }
 }

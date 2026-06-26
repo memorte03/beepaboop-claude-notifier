@@ -93,7 +93,7 @@ final class NotificationStore: ObservableObject {
 
     /// Kinds worth keeping around: done-needs-review, waiting-for-input, and
     /// timed-out permissions (Claude is sitting on its native prompt).
-    private let pillKinds: Set<NotifyKind> = [.stop, .idle, .permission]
+    private let pillKinds: Set<NotifyKind> = [.stop, .idle, .permission, .ask]
 
     /// Which kinds actually surface (chime + overlay). Anything else is dropped.
     /// Persisted; toggled from the menu bar.
@@ -105,7 +105,7 @@ final class NotificationStore: ObservableObject {
 
     private static func loadEnabledKinds() -> Set<NotifyKind> {
         guard let raw = UserDefaults.standard.stringArray(forKey: "enabledKinds") else {
-            return [.stop, .permission, .error]
+            return [.stop, .permission, .ask, .error]
         }
         return Set(raw.compactMap(NotifyKind.init(rawValue:)))
     }

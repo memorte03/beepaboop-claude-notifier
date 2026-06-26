@@ -10,7 +10,9 @@ enum Bootstrap {
     /// v2: thin wrappers that exec `Boopr __hook …` (no jq, no boopr-common.sh).
     /// v3: adds active.sh + the UserPromptSubmit hook (clears a session's pill
     ///     when the user types in it).
-    static let hooksVersion = 3
+    /// v4: adds ask.sh + a second PreToolUse hook (AskUserQuestion / ExitPlanMode)
+    ///     so option-list / plan-approval prompts surface a notify-with-jump.
+    static let hooksVersion = 4
 
     private static var hooksDir: URL { AuthToken.configDir.appendingPathComponent("hooks") }
     private static var settingsURL: URL {
@@ -23,6 +25,9 @@ enum Bootstrap {
 
     /// Default PreToolUse matcher — the tools that get an Approve/Deny overlay.
     static let defaultMatcher = "Bash|Write|Edit|MultiEdit|NotebookEdit"
+    /// PreToolUse matcher for the question prompts — surfaced as notify-with-jump
+    /// (no Approve/Deny), via a separate, non-blocking hook.
+    static let askMatcher = "AskUserQuestion|ExitPlanMode"
 
     /// Runs on launch (off the main thread). Refreshes hook files when the
     /// bundle is newer and (re-)wires settings.json on first run or whenever the
@@ -84,7 +89,7 @@ enum Bootstrap {
         let fm = FileManager.default
         do {
             try fm.createDirectory(at: hooksDir, withIntermediateDirectories: true)
-            for name in ["notify.sh", "permission.sh", "active.sh"] {
+            for name in ["notify.sh", "permission.sh", "active.sh", "ask.sh"] {
                 let from = src.appendingPathComponent(name)
                 let to = hooksDir.appendingPathComponent(name)
                 guard fm.fileExists(atPath: from.path) else { continue }
@@ -110,6 +115,7 @@ enum Bootstrap {
         let notify = hooksDir.appendingPathComponent("notify.sh").path
         let permission = hooksDir.appendingPathComponent("permission.sh").path
         let active = hooksDir.appendingPathComponent("active.sh").path
+        let ask = hooksDir.appendingPathComponent("ask.sh").path
 
         var root: [String: Any] = [:]
         if let data = try? Data(contentsOf: settingsURL) {
@@ -136,7 +142,11 @@ enum Bootstrap {
 
         hooks["Stop"]             = dropOurs(hooks["Stop"])             + [ours("", notify)]
         hooks["Notification"]     = dropOurs(hooks["Notification"])     + [ours("", notify)]
-        hooks["PreToolUse"]       = dropOurs(hooks["PreToolUse"])       + [ours(defaultMatcher, permission)]
+        // Two PreToolUse entries: the blocking Approve/Deny path, and the
+        // non-blocking question path (AskUserQuestion / ExitPlanMode). dropOurs
+        // strips both (each command contains "boopr") so re-wiring converges.
+        hooks["PreToolUse"]       = dropOurs(hooks["PreToolUse"])
+            + [ours(defaultMatcher, permission), ours(askMatcher, ask)]
         // User typed in a session → it's focused → clear its pill (active.sh
         // posts to /active; emits no stdout so it never alters the prompt).
         hooks["UserPromptSubmit"] = dropOurs(hooks["UserPromptSubmit"]) + [ours("", active)]

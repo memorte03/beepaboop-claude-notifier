@@ -9,6 +9,7 @@ extension NotifyKind {
         case .stop:       return "checkmark.circle.fill"
         case .idle:       return "ellipsis.bubble.fill"
         case .permission: return "bolt.fill"
+        case .ask:        return "questionmark.circle.fill"
         case .info:       return "info.circle.fill"
         case .error:      return "exclamationmark.triangle.fill"
         }
@@ -19,6 +20,7 @@ extension NotifyKind {
         case .stop:       return Color(red: 0.62, green: 0.92, blue: 0.55)
         case .idle:       return Color(red: 1.0, green: 0.84, blue: 0.36)
         case .permission: return Color(red: 1.0, green: 0.62, blue: 0.30)
+        case .ask:        return Color(red: 0.72, green: 0.58, blue: 1.0)
         case .info:       return Color(red: 0.45, green: 0.78, blue: 1.0)
         case .error:      return Color(red: 1.0, green: 0.40, blue: 0.42)
         }
@@ -29,6 +31,7 @@ extension NotifyKind {
         case .stop:       return "done"
         case .idle:       return "needs input"
         case .permission: return "permission"
+        case .ask:        return "asking"
         case .info:       return "info"
         case .error:      return "error"
         }

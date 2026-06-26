@@ -109,6 +109,12 @@ final class ChimePlayer: ObservableObject {
                 .init(freq: 0,      duration: 0.06, amp: 0),
                 .init(freq: 880.00, duration: 0.18, amp: 1.0)    // A5
             ]
+        case .ask:
+            // rising "questioning" lilt — C5 → G5, softer than permission
+            return [
+                .init(freq: 523.25, duration: 0.12, amp: 0.9),   // C5
+                .init(freq: 783.99, duration: 0.22, amp: 0.9)    // G5
+            ]
         case .info:
             // short single E5 blip
             return [.init(freq: 659.25, duration: 0.20, amp: 0.7)]

@@ -29,6 +29,7 @@ enum HookCLI {
         case "notify":     runNotify(input)
         case "permission": runPermission(input)
         case "active":     runActive(input)
+        case "ask":        runAsk(input)
         default:           exit(0)
         }
     }
@@ -42,6 +43,34 @@ enum HookCLI {
                                 cwd: opt(input.cwd), sessionId: opt(input.sessionId), title: "")
         if let body = try? JSONEncoder().encode(req) {
             _ = post(path: "/active", body: body, timeout: 1)
+        }
+        exit(0)
+    }
+
+    // MARK: - ask (PreToolUse: AskUserQuestion / ExitPlanMode) — non-blocking
+
+    /// Claude is asking the user something (a multiple-choice question, or a plan
+    /// to approve). Unlike `permission`, there's no allow/deny to make — we just
+    /// surface a notify-with-jump and exit 0 with NO stdout so the interactive
+    /// prompt renders normally. Fire-and-forget POST to /notify.
+    private static func runAsk(_ input: HookInput) -> Never {
+        let title: String
+        let context: String
+        switch input.toolName {
+        case "ExitPlanMode":
+            title = "Claude is ready — review the plan"
+            context = HookContext.trim(input.ti("plan"))
+        default:   // AskUserQuestion
+            let questions = input.toolInput["questions"] as? [[String: Any]] ?? []
+            let first = (questions.first?["question"] as? String) ?? ""
+            let more = questions.count > 1 ? " (+\(questions.count - 1) more)" : ""
+            title = "Claude is asking you"
+            context = HookContext.trim(first.isEmpty ? "Select an option to continue" : first + more)
+        }
+        let req = HookContext.buildPayload(input: input, id: HookContext.uuid(),
+                                           kind: .ask, title: title, context: context)
+        if let body = try? JSONEncoder().encode(req) {
+            _ = post(path: "/notify", body: body, timeout: 2)
         }
         exit(0)
     }

@@ -188,6 +188,7 @@ struct MenuContent: View {
             Button("Test: Stop (done)")          { DebugFixtures.fire(.stop, store: store) }
             Button("Test: Notification (idle)")  { DebugFixtures.fire(.idle, store: store) }
             Button("Test: Permission (Bash)")    { DebugFixtures.fire(.permission, store: store) }
+            Button("Test: Question (ask)")       { DebugFixtures.fire(.ask, store: store) }
             Button("Test: Error")                { DebugFixtures.fire(.error, store: store) }
             Button("Test: Info")                 { DebugFixtures.fire(.info, store: store) }
             Divider()
@@ -247,6 +248,7 @@ struct MenuContent: View {
             Toggle("Done (Stop)", isOn: store.bindingForKind(.stop))
             Toggle("Waiting for input", isOn: store.bindingForKind(.idle))
             Toggle("Permission prompts", isOn: store.bindingForKind(.permission))
+            Toggle("Questions (option lists / plans)", isOn: store.bindingForKind(.ask))
             Toggle("Errors", isOn: store.bindingForKind(.error))
             Toggle("Info", isOn: store.bindingForKind(.info))
             Divider()
@@ -296,6 +298,16 @@ enum DebugFixtures {
                 terminalPid: pid, terminalApp: "com.apple.Terminal", windowTitle: "claude"
             )
             _ = store.enqueuePermission(req)
+        case .ask:
+            store.enqueue(NotifyRequest(
+                id: id, kind: .ask,
+                repoName: "boopr", branch: "main",
+                cwd: NSHomeDirectory() + "/Workspace/boopr",
+                sessionId: "debug",
+                title: "Claude is asking you",
+                context: "Which auth method should we use? (+1 more)",
+                terminalPid: pid, terminalApp: "com.apple.Terminal", windowTitle: "claude"
+            ))
         case .error:
             store.enqueue(NotifyRequest(
                 id: id, kind: .error,

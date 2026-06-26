@@ -4,6 +4,7 @@ enum NotifyKind: String, Codable, Sendable {
     case stop          // Claude finished
     case idle          // Claude needs input (Notification hook)
     case permission    // PreToolUse, action required
+    case ask           // Claude asked a question (AskUserQuestion / ExitPlanMode)
     case info          // generic
     case error
 }

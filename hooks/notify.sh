@@ -1,37 +1,9 @@
-#!/usr/bin/env bash
-# Fire-and-forget hook for Stop and Notification events.
+#!/bin/sh
+# Boopr Stop/Notification hook.
+# Thin wrapper: hands the event to the Boopr binary, which does everything
+# in-process (JSON, terminal detection, HTTP) — no jq, no other dependencies.
 # Install as a Stop / Notification hook in ~/.claude/settings.json.
-
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=boopr-common.sh
-source "$SCRIPT_DIR/boopr-common.sh"
-
-event="$(cn_hook_event)"
-case "$event" in
-    Stop|SubagentStop)
-        kind="stop"
-        title="Claude is done"
-        context="$(cn_trim "$(cn_message)")"
-        ;;
-    Notification)
-        kind="idle"
-        title="Claude is waiting for you"
-        context="$(cn_trim "$(cn_message)")"
-        ;;
-    *)
-        kind="info"
-        title="Claude: $event"
-        context="$(cn_trim "$(cn_message)")"
-        ;;
-esac
-
-payload="$(cn_build_payload "$(cn_uuid)" "$kind" "$title" "$context")"
-
-curl --silent --show-error --max-time 2 \
-     -X POST "$CN_URL/notify" \
-     -H 'Content-Type: application/json' \
-     -H "X-Boopr-Token: ${CN_TOKEN}" \
-     -d "$payload" >/dev/null 2>&1 || true
-
-exit 0
+B="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/boopr/bin" 2>/dev/null)"
+[ -x "$B" ] || B="/Applications/Boopr.app/Contents/MacOS/Boopr"
+[ -x "$B" ] || exit 0   # app not installed → no-op, never break Claude
+exec "$B" __hook notify

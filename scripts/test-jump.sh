@@ -21,21 +21,24 @@ window="$($TMUX_BIN -S "$SOCKET" display-message -p -t "$pane" '#{window_id}')"
 
 echo "targeting pane $pane (session $session, window $window)"
 
-curl -s -X POST "http://127.0.0.1:${PORT}/notify" -H 'Content-Type: application/json' -H "X-Boopr-Token: ${TOKEN}" -d "$(jq -nc \
-    --arg pane "$pane" --arg session "$session" --arg window "$window" \
-    --arg socket "$SOCKET" --arg bin "$TMUX_BIN" \
-    '{
-        id: ("jump-test-" + ($pane | ltrimstr("%"))),
-        kind: "stop",
-        title: ("Jump test → session " + $session + ", pane " + $pane),
-        context: "Click Open session: the right Ghostty window should come forward (even across Spaces) with this pane focused.",
-        repoName: "boopr",
-        sessionId: "jump-test",
-        terminalApp: "com.mitchellh.ghostty",
-        tmuxSession: $session,
-        tmuxPane: $pane,
-        tmuxWindowId: $window,
-        tmuxSocket: $socket,
-        tmuxBin: $bin
-    }')"
+# Build the payload without jq (the fields here are plain tmux ids/paths).
+read -r -d '' PAYLOAD <<JSON || true
+{
+  "id": "jump-test-${pane#%}",
+  "kind": "stop",
+  "title": "Jump test → session ${session}, pane ${pane}",
+  "context": "Click Open session: the right Ghostty window should come forward (even across Spaces) with this pane focused.",
+  "repoName": "boopr",
+  "sessionId": "jump-test",
+  "terminalApp": "com.mitchellh.ghostty",
+  "tmuxSession": "${session}",
+  "tmuxPane": "${pane}",
+  "tmuxWindowId": "${window}",
+  "tmuxSocket": "${SOCKET}",
+  "tmuxBin": "${TMUX_BIN}"
+}
+JSON
+
+curl -s -X POST "http://127.0.0.1:${PORT}/notify" \
+    -H 'Content-Type: application/json' -H "X-Boopr-Token: ${TOKEN}" -d "$PAYLOAD"
 echo " -> sent"

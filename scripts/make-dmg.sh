@@ -37,8 +37,6 @@ INSTALL
 
 REQUIREMENTS
   - macOS 14 (Sonoma) or newer
-  - jq   ->  brew install jq   (Homebrew: https://brew.sh)
-           The menu-bar bell will warn you if it's missing.
 
 The app sets up its Claude Code hooks automatically on first launch. Grant
 Accessibility and Automation when asked (menu-bar bell > Permissions) so

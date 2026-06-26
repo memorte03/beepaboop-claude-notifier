@@ -17,10 +17,6 @@ CLAUDE_SETTINGS="${HOME}/.claude/settings.json"
 PRETOOL_MATCHER="${BOOPR_PRETOOL_MATCHER:-Bash|Write|Edit|MultiEdit|NotebookEdit}"
 
 # ── prerequisites ───────────────────────────────────────────────────────────
-if ! command -v jq >/dev/null 2>&1; then
-    echo "error: jq is required (hooks are built with it): brew install jq" >&2
-    exit 1
-fi
 if ! command -v swift >/dev/null 2>&1; then
     echo "error: swift toolchain not found — install Xcode or Command Line Tools" >&2
     exit 1
@@ -68,58 +64,24 @@ echo "→ signing (stable cert if available, else ad-hoc)"
 source "${REPO_ROOT}/scripts/lib-sign.sh"
 cn_sign_bundle "$APP_BUNDLE" "$BUNDLE_ID"
 
-# ── hooks: copy to a stable path that survives moving/deleting the repo ─────
-echo "→ installing hooks to ${HOOKS_DIR}"
-mkdir -p "$HOOKS_DIR"
-cp "${REPO_ROOT}/hooks/boopr-common.sh" \
-   "${REPO_ROOT}/hooks/notify.sh" \
-   "${REPO_ROOT}/hooks/permission.sh" "$HOOKS_DIR/"
-chmod +x "${HOOKS_DIR}/notify.sh" "${HOOKS_DIR}/permission.sh"
-
-# ── wire hooks into ~/.claude/settings.json ─────────────────────────────────
-# Strategy: drop any existing boopr entries (old paths included),
-# then append fresh ones — re-running always converges on the current config.
-echo "→ updating ${CLAUDE_SETTINGS}"
-mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
-[[ -f "$CLAUDE_SETTINGS" ]] || echo '{}' > "$CLAUDE_SETTINGS"
-cp "$CLAUDE_SETTINGS" "${CLAUDE_SETTINGS}.bak"
-
-if jq --arg notify "${HOOKS_DIR}/notify.sh" \
-   --arg permission "${HOOKS_DIR}/permission.sh" \
-   --arg matcher "$PRETOOL_MATCHER" '
-    def drop_ours(list):
-        (list // []) | map(select(
-            ((.hooks // []) | any(.command | test("boopr"))) | not
-        ));
-    .hooks.Stop         = drop_ours(.hooks.Stop)
-                          + [{matcher: "", hooks: [{type: "command", command: $notify}]}]
-  | .hooks.Notification = drop_ours(.hooks.Notification)
-                          + [{matcher: "", hooks: [{type: "command", command: $notify}]}]
-  | .hooks.PreToolUse   = drop_ours(.hooks.PreToolUse)
-                          + [{matcher: $matcher, hooks: [{type: "command", command: $permission}]}]
-' "$CLAUDE_SETTINGS" > "${CLAUDE_SETTINGS}.tmp"; then
-    mv "${CLAUDE_SETTINGS}.tmp" "$CLAUDE_SETTINGS"
-else
-    rm -f "${CLAUDE_SETTINGS}.tmp"
-    echo "   ⚠ ${CLAUDE_SETTINGS} isn't valid JSON — left it unchanged (backup at ${CLAUDE_SETTINGS}.bak)." >&2
-    echo "   Fix the JSON and re-run, or add the hooks manually." >&2
-fi
-
-echo "→ launching"
+# ── hooks + settings wiring ─────────────────────────────────────────────────
+# The app installs the wrapper hooks into ${HOOKS_DIR} and merges its entries
+# into settings.json itself on first launch (Bootstrap, pure Foundation — no
+# jq), recording its own path so the hooks find it. We just launch it.
+echo "→ launching (the app installs its hooks + wires ${CLAUDE_SETTINGS} on first run)"
 open "$APP_BUNDLE"
 
 cat <<EOF
 
 installed:
   app:    ${APP_BUNDLE}
-  hooks:  ${HOOKS_DIR}
+  hooks:  ${HOOKS_DIR} (installed by the app on first launch)
   config: ${CLAUDE_SETTINGS} (backup at ${CLAUDE_SETTINGS}.bak)
 
 next steps:
   - grant Accessibility when prompted (and Automation on first jump)
   - menu bar → Boopr → "Launch at Login" to enable auto-start
   - permission prompts cover: ${PRETOOL_MATCHER}
-    (re-run with BOOPR_PRETOOL_MATCHER="..." to change)
 
 uninstall any time with: scripts/uninstall.sh
 EOF

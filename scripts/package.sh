@@ -22,9 +22,9 @@ rm -rf "$DIST"
 mkdir -p "$STAGE/support"
 "${REPO_ROOT}/scripts/build-app.sh" "$APP"
 
-echo "→ staging support files (hooks + signing helpers)"
-mkdir -p "${STAGE}/support/hooks"
-cp "${REPO_ROOT}/hooks/"*.sh "${STAGE}/support/hooks/"
+echo "→ staging support files (signing helpers)"
+# Hooks are bundled inside the .app and installed by it on first launch, so the
+# installer doesn't ship or copy them separately.
 cp "${REPO_ROOT}/scripts/lib-sign.sh" "${REPO_ROOT}/scripts/make-signing-cert.sh" "${STAGE}/support/"
 
 echo "→ writing Install.command"
@@ -38,21 +38,9 @@ SUPPORT="$HERE/support"
 APP_SRC="$HERE/Boopr.app"
 APP_DST="/Applications/Boopr.app"
 BUNDLE_ID="com.memorte03.boopr"
-CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/boopr"
-HOOKS_DIR="$CONFIG/hooks"
 SETTINGS="$HOME/.claude/settings.json"
-MATCHER="${BOOPR_PRETOOL_MATCHER:-Bash|Write|Edit|MultiEdit|NotebookEdit}"
 
 echo "Installing Boopr…"
-
-if ! command -v jq >/dev/null 2>&1; then
-    echo
-    echo "  jq is required and isn't installed. Install it, then re-run this:"
-    echo "    brew install jq        (get Homebrew at https://brew.sh)"
-    echo
-    read -r -p "Press return to close." _ || true
-    exit 1
-fi
 
 echo "→ copying app to /Applications"
 pkill -x Boopr 2>/dev/null || true
@@ -75,31 +63,9 @@ fi
 echo "→ signing the app"
 cn_sign_bundle "$APP_DST" "$BUNDLE_ID"
 
-echo "→ installing hooks to $HOOKS_DIR"
-mkdir -p "$HOOKS_DIR"
-cp "$SUPPORT/hooks/"*.sh "$HOOKS_DIR/"
-chmod +x "$HOOKS_DIR/notify.sh" "$HOOKS_DIR/permission.sh"
-
-echo "→ wiring $SETTINGS"
-mkdir -p "$(dirname "$SETTINGS")"
-[[ -f "$SETTINGS" ]] || echo '{}' > "$SETTINGS"
-cp "$SETTINGS" "$SETTINGS.bak"
-if jq --arg notify "$HOOKS_DIR/notify.sh" \
-   --arg permission "$HOOKS_DIR/permission.sh" \
-   --arg matcher "$MATCHER" '
-    def drop_ours(list):
-        (list // []) | map(select(((.hooks // []) | any(.command | test("boopr"))) | not));
-    .hooks.Stop         = drop_ours(.hooks.Stop)         + [{matcher:"",        hooks:[{type:"command",command:$notify}]}]
-  | .hooks.Notification = drop_ours(.hooks.Notification) + [{matcher:"",        hooks:[{type:"command",command:$notify}]}]
-  | .hooks.PreToolUse   = drop_ours(.hooks.PreToolUse)   + [{matcher:$matcher,  hooks:[{type:"command",command:$permission}]}]
-' "$SETTINGS" > "$SETTINGS.tmp"; then
-    mv "$SETTINGS.tmp" "$SETTINGS"
-else
-    rm -f "$SETTINGS.tmp"
-    echo "  ⚠ $SETTINGS isn't valid JSON — left it unchanged (backup at $SETTINGS.bak)."
-fi
-
-echo "→ launching"
+# The app installs its wrapper hooks and merges its entries into settings.json
+# itself on first launch (pure Foundation — no jq), backing up the original.
+echo "→ launching (Boopr installs its hooks + wires $SETTINGS on first run)"
 open "$APP_DST"
 
 cat <<EOF
@@ -128,20 +94,18 @@ with Approve/Deny and a one-click jump to the right terminal session.
 
 REQUIREMENTS
   - macOS 14 (Sonoma) or newer
-  - jq        ->  brew install jq        (Homebrew: https://brew.sh)
   - Claude Code
   - Best experience: tmux + Ghostty 1.3+ (for cross-Space jump-to-session)
 
 INSTALL
-  1. Install jq if you don't have it:   brew install jq
-  2. Open Terminal, type "bash " (with a space), then DRAG the file
+  1. Open Terminal, type "bash " (with a space), then DRAG the file
      "Install.command" (next to this README) into the Terminal window
      and press Return.
        - Running it this way avoids the macOS "unidentified developer"
          warning. (Double-clicking works too, but you'll have to
          right-click -> Open, or approve it in System Settings ->
          Privacy & Security.)
-  3. Follow the prompts. Grant Accessibility + Automation when asked.
+  2. Follow the prompts. Grant Accessibility + Automation when asked.
 
 This app isn't from the App Store and isn't notarized by Apple, so macOS
 is cautious about it — that's why the installer clears the quarantine flag

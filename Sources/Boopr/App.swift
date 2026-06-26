@@ -2,7 +2,24 @@ import SwiftUI
 import AppKit
 import ServiceManagement
 
+/// Entry point. Intercepts the hook/uninstall CLI invocations before any AppKit
+/// init so `Boopr __hook …` runs as a plain command (no menu-bar app, no dock
+/// icon) and exits; everything else launches the normal GUI.
 @main
+struct BooprMain {
+    static func main() {
+        let args = CommandLine.arguments
+        if args.count >= 2 {
+            switch args[1] {
+            case "__hook":   HookCLI.run(Array(args.dropFirst(2)))   // exits
+            case "__unwire": Bootstrap.unwireSettings(); exit(0)
+            default:         break
+            }
+        }
+        BooprApp.main()
+    }
+}
+
 struct BooprApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
@@ -111,23 +128,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // First-launch setup: install hooks + wire settings.json so a plain
         // drag-to-Applications install works with no terminal step.
         Bootstrap.runIfNeeded()
-
-        // The hooks need jq at runtime; cache the result (the menu reads the
-        // flag) and warn once if it's missing.
-        DispatchQueue.global(qos: .utility).async {
-            let available = Bootstrap.jqAvailable()
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.store.jqMissing = !available
-                if !available {
-                    self.store.enqueue(NotifyRequest(
-                        id: UUID().uuidString, kind: .error,
-                        title: "Install jq for notifications to work",
-                        context: "Boopr's hooks need jq. Install it: brew install jq"
-                    ))
-                }
-            }
-        }
     }
 
     /// Shows/hides the pill bar and keeps the overlay card below it.
@@ -156,9 +156,6 @@ struct MenuContent: View {
             Label(err, systemImage: "exclamationmark.triangle.fill")
         } else {
             Text("Listening on 127.0.0.1:\(String(port))")
-        }
-        if store.jqMissing {
-            Label("jq not found — run: brew install jq", systemImage: "exclamationmark.triangle.fill")
         }
         if let cur = store.current {
             Text("Active: \(cur.title)").lineLimit(1)

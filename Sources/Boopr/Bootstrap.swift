@@ -7,7 +7,8 @@ import Foundation
 /// it never fights a user who deliberately removed the hooks.
 enum Bootstrap {
     /// Bump when the bundled hook scripts change so installed copies refresh.
-    static let hooksVersion = 1
+    /// v2: thin wrappers that exec `Boopr __hook …` (no jq, no boopr-common.sh).
+    static let hooksVersion = 2
 
     private static var hooksDir: URL { AuthToken.configDir.appendingPathComponent("hooks") }
     private static var settingsURL: URL {
@@ -38,6 +39,9 @@ enum Bootstrap {
                     UserDefaults.standard.set(true, forKey: "settingsWired")
                 }
             }
+            // The wrapper scripts resolve the binary through this file, so it
+            // survives the app being moved or renamed. Refresh it every launch.
+            writeBinPath()
         }
     }
 
@@ -52,23 +56,14 @@ enum Bootstrap {
         return ok
     }
 
-    /// Whether jq — required by the hooks at runtime — is reachable.
-    static func jqAvailable() -> Bool {
-        let candidates = ["/opt/homebrew/bin/jq", "/usr/local/bin/jq", "/usr/bin/jq"]
-        if candidates.contains(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
-            return true
-        }
-        // Fall back to a PATH lookup via the login shell.
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["sh", "-lc", "command -v jq"]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        do {
-            try p.run(); p.waitUntilExit()
-            return p.terminationStatus == 0
-        } catch { return false }
+    /// Records this binary's path so the wrapper scripts can find it after a
+    /// move/rename. Written next to the auth token; best-effort.
+    static func writeBinPath() {
+        guard let exe = Bundle.main.executableURL?.resolvingSymlinksInPath().path else { return }
+        let fm = FileManager.default
+        let binFile = AuthToken.configDir.appendingPathComponent("bin")
+        try? fm.createDirectory(at: AuthToken.configDir, withIntermediateDirectories: true)
+        try? Data(exe.utf8).write(to: binFile, options: .atomic)
     }
 
     // MARK: - private
@@ -80,7 +75,7 @@ enum Bootstrap {
         let fm = FileManager.default
         do {
             try fm.createDirectory(at: hooksDir, withIntermediateDirectories: true)
-            for name in ["boopr-common.sh", "notify.sh", "permission.sh"] {
+            for name in ["notify.sh", "permission.sh"] {
                 let from = src.appendingPathComponent(name)
                 let to = hooksDir.appendingPathComponent(name)
                 guard fm.fileExists(atPath: from.path) else { continue }
@@ -88,6 +83,8 @@ enum Bootstrap {
                 try fm.copyItem(at: from, to: to)
                 try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: to.path)
             }
+            // Tidy up the pre-v2 shared library; the wrappers no longer source it.
+            try? fm.removeItem(at: hooksDir.appendingPathComponent("boopr-common.sh"))
             return true
         } catch {
             NSLog("Bootstrap: copyHooks failed: \(error)")
@@ -147,6 +144,47 @@ enum Bootstrap {
             return true
         } catch {
             NSLog("Bootstrap: wireSettings failed: \(error)")
+            return false
+        }
+    }
+
+    /// Strips boopr's hook entries from ~/.claude/settings.json (preserving any
+    /// other hooks). Used by `Boopr __unwire`, called from uninstall.sh so the
+    /// teardown needs no jq. Other settings are untouched.
+    @discardableResult
+    static func unwireSettings() -> Bool {
+        let fm = FileManager.default
+        guard let data = try? Data(contentsOf: settingsURL),
+              var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return false
+        }
+        guard var hooks = root["hooks"] as? [String: Any] else { return true }
+
+        func dropOurs(_ value: Any?) -> [[String: Any]] {
+            let list = value as? [[String: Any]] ?? []
+            return list.filter { entry in
+                let inner = entry["hooks"] as? [[String: Any]] ?? []
+                return !inner.contains { ($0["command"] as? String ?? "").contains("boopr") }
+            }
+        }
+
+        for event in ["Stop", "Notification", "PreToolUse"] {
+            let remaining = dropOurs(hooks[event])
+            if remaining.isEmpty { hooks.removeValue(forKey: event) }
+            else { hooks[event] = remaining }
+        }
+        if hooks.isEmpty { root.removeValue(forKey: "hooks") }
+        else { root["hooks"] = hooks }
+
+        do {
+            let bak = settingsURL.appendingPathExtension("bak")
+            try? fm.copyItem(at: settingsURL, to: bak)
+            let out = try JSONSerialization.data(
+                withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            try out.write(to: settingsURL, options: .atomic)
+            return true
+        } catch {
+            NSLog("Bootstrap: unwireSettings failed: \(error)")
             return false
         }
     }

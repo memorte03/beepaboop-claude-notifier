@@ -32,7 +32,6 @@ deny right there, see the diff, and jump straight to the session.
 
 - macOS 14 (Sonoma) or newer
 - [Claude Code](https://claude.com/claude-code)
-- [`jq`](https://jqlang.github.io/jq/) — `brew install jq`
 - *Optional, for the best jump-to-session:* tmux + [Ghostty](https://ghostty.org) 1.3+
 
 ### Download the `.dmg` (recommended)

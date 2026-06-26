@@ -41,10 +41,6 @@ final class NotificationStore: ObservableObject {
     /// menu can show a visible error instead of the app silently no-opping.
     @Published var serverError: String?
 
-    /// jq presence (the hooks need it at runtime). Cached at launch so the menu
-    /// reads a flag instead of spawning a shell on every open.
-    @Published var jqMissing = false
-
     /// Launch-at-login — single source of truth shared by the menu and Settings.
     @Published var launchAtLogin: Bool = LoginItem.isEnabled
     func toggleLaunchAtLogin() {

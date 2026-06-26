@@ -8,7 +8,9 @@ import Foundation
 enum Bootstrap {
     /// Bump when the bundled hook scripts change so installed copies refresh.
     /// v2: thin wrappers that exec `Boopr __hook …` (no jq, no boopr-common.sh).
-    static let hooksVersion = 2
+    /// v3: adds active.sh + the UserPromptSubmit hook (clears a session's pill
+    ///     when the user types in it).
+    static let hooksVersion = 3
 
     private static var hooksDir: URL { AuthToken.configDir.appendingPathComponent("hooks") }
     private static var settingsURL: URL {
@@ -23,18 +25,25 @@ enum Bootstrap {
     static let defaultMatcher = "Bash|Write|Edit|MultiEdit|NotebookEdit"
 
     /// Runs on launch (off the main thread). Refreshes hook files when the
-    /// bundle is newer, and wires settings.json the first time only.
+    /// bundle is newer and (re-)wires settings.json on first run or whenever the
+    /// hook set changes.
     static func runIfNeeded() {
         DispatchQueue.global(qos: .utility).async {
             let installed = UserDefaults.standard.integer(forKey: "hooksVersion")
             // Forward-only refresh: don't overwrite newer installed hooks if a
             // downgraded build (lower hooksVersion) ever runs.
-            if installed < hooksVersion || !FileManager.default.fileExists(atPath: hooksDir.path) {
+            let needsRefresh = installed < hooksVersion
+                || !FileManager.default.fileExists(atPath: hooksDir.path)
+            if needsRefresh {
                 if copyHooks() {
                     UserDefaults.standard.set(hooksVersion, forKey: "hooksVersion")
                 }
             }
-            if !UserDefaults.standard.bool(forKey: "settingsWired") {
+            // Re-wire on first run AND whenever the hook set changes — new events
+            // (e.g. UserPromptSubmit in v3) must reach existing installs whose
+            // settingsWired flag is already set. wireSettings is idempotent (drops
+            // our entries, re-adds), so this converges.
+            if needsRefresh || !UserDefaults.standard.bool(forKey: "settingsWired") {
                 if wireSettings() {
                     UserDefaults.standard.set(true, forKey: "settingsWired")
                 }
@@ -75,7 +84,7 @@ enum Bootstrap {
         let fm = FileManager.default
         do {
             try fm.createDirectory(at: hooksDir, withIntermediateDirectories: true)
-            for name in ["notify.sh", "permission.sh"] {
+            for name in ["notify.sh", "permission.sh", "active.sh"] {
                 let from = src.appendingPathComponent(name)
                 let to = hooksDir.appendingPathComponent(name)
                 guard fm.fileExists(atPath: from.path) else { continue }
@@ -100,6 +109,7 @@ enum Bootstrap {
         let fm = FileManager.default
         let notify = hooksDir.appendingPathComponent("notify.sh").path
         let permission = hooksDir.appendingPathComponent("permission.sh").path
+        let active = hooksDir.appendingPathComponent("active.sh").path
 
         var root: [String: Any] = [:]
         if let data = try? Data(contentsOf: settingsURL) {
@@ -124,9 +134,12 @@ enum Bootstrap {
             }
         }
 
-        hooks["Stop"]         = dropOurs(hooks["Stop"])         + [ours("", notify)]
-        hooks["Notification"] = dropOurs(hooks["Notification"]) + [ours("", notify)]
-        hooks["PreToolUse"]   = dropOurs(hooks["PreToolUse"])   + [ours(defaultMatcher, permission)]
+        hooks["Stop"]             = dropOurs(hooks["Stop"])             + [ours("", notify)]
+        hooks["Notification"]     = dropOurs(hooks["Notification"])     + [ours("", notify)]
+        hooks["PreToolUse"]       = dropOurs(hooks["PreToolUse"])       + [ours(defaultMatcher, permission)]
+        // User typed in a session → it's focused → clear its pill (active.sh
+        // posts to /active; emits no stdout so it never alters the prompt).
+        hooks["UserPromptSubmit"] = dropOurs(hooks["UserPromptSubmit"]) + [ours("", active)]
         root["hooks"] = hooks
 
         do {
@@ -168,7 +181,7 @@ enum Bootstrap {
             }
         }
 
-        for event in ["Stop", "Notification", "PreToolUse"] {
+        for event in ["Stop", "Notification", "PreToolUse", "UserPromptSubmit"] {
             let remaining = dropOurs(hooks[event])
             if remaining.isEmpty { hooks.removeValue(forKey: event) }
             else { hooks[event] = remaining }

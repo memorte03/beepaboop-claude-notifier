@@ -28,8 +28,22 @@ enum HookCLI {
         switch mode {
         case "notify":     runNotify(input)
         case "permission": runPermission(input)
+        case "active":     runActive(input)
         default:           exit(0)
         }
+    }
+
+    // MARK: - active (UserPromptSubmit) — user typed → clear this session's pill
+
+    private static func runActive(_ input: HookInput) -> Never {
+        func opt(_ s: String) -> String? { s.isEmpty ? nil : s }
+        // Only the session identity matters; skip the git/tmux/terminal probing.
+        let req = NotifyRequest(id: HookContext.uuid(), kind: .info,
+                                cwd: opt(input.cwd), sessionId: opt(input.sessionId), title: "")
+        if let body = try? JSONEncoder().encode(req) {
+            _ = post(path: "/active", body: body, timeout: 1)
+        }
+        exit(0)
     }
 
     // MARK: - notify (Stop / Notification)

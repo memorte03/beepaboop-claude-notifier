@@ -5,6 +5,7 @@ import Network
 /// Routes:
 ///   GET  /health      → liveness (full state counts only when the token is supplied)
 ///   POST /notify      → enqueue NotifyRequest, return 200 immediately
+///   POST /active      → user typed in a session; clear its pill, return 200
 ///   POST /permission  → enqueue + long-poll until user clicks; return PermissionResponse JSON
 ///
 /// `@unchecked Sendable` is sound because every stored property is immutable
@@ -186,6 +187,16 @@ final class HTTPServer: @unchecked Sendable {
                 respond(conn, status: 200, body: #"{"ok":true}"#, contentType: "application/json")
             } catch {
                 NSLog("/notify decode failed: \(error)")
+                respond(conn, status: 400, body: #"{"error":"bad json"}"#, contentType: "application/json")
+            }
+
+        case "/active":
+            do {
+                let req = try JSONDecoder().decode(NotifyRequest.self, from: body)
+                Task { @MainActor in self.store.markSessionActive(req) }
+                respond(conn, status: 200, body: #"{"ok":true}"#, contentType: "application/json")
+            } catch {
+                NSLog("/active decode failed: \(error)")
                 respond(conn, status: 400, body: #"{"error":"bad json"}"#, contentType: "application/json")
             }
 

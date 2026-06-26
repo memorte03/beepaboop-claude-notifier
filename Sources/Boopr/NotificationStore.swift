@@ -158,11 +158,16 @@ final class NotificationStore: ObservableObject {
     }
 
     func enqueue(_ req: NotifyRequest) {
-        // Any new event supersedes the session's pill: either the user handles
-        // the fresh overlay now, or it re-demotes with newer content on timeout.
-        pending.removeAll { $0.key == PendingAction.key(for: req) }
-        // Drop kinds the user has disabled entirely (no chime, no overlay).
+        // Drop kinds the user has disabled entirely (no chime, no overlay) —
+        // and crucially do NOT touch the session's pill: a suppressed event
+        // isn't a "newer notification". (This was the silent-vanish bug: an idle
+        // Notification, which the user has disabled, used to eat the pill on its
+        // way to being dropped.)
         guard enabledKinds.contains(req.kind) else { return }
+        // Past here the event surfaces (or the user is right at the session), so
+        // it supersedes the pill: the live overlay replaces it, re-demoting with
+        // newer content on timeout if still unattended.
+        pending.removeAll { $0.key == PendingAction.key(for: req) }
         // Chime is coupled to the overlay opening: stay silent when we're
         // short-circuiting (terminal focused, etc.).
         if isTerminalFocused(req: req) { return }
@@ -275,11 +280,10 @@ final class NotificationStore: ObservableObject {
         if req.actions == nil || req.actions?.isEmpty == true {
             req.actions = ["Approve", "Deny"]
         }
-        // Newer session activity supersedes the pill even when the request
-        // short-circuits below (session-allow, already focused).
-        pending.removeAll { $0.key == PendingAction.key(for: req) }
+        let key = PendingAction.key(for: req)
 
-        // If permission notifications are disabled, defer to native instantly.
+        // If permission notifications are disabled, defer to native instantly —
+        // and leave the pill alone (a suppressed event isn't a new pill).
         guard enabledKinds.contains(.permission) else {
             return DecisionHandle(task: Task {
                 PermissionResponse(decision: "ask", reason: "disabled")
@@ -287,7 +291,8 @@ final class NotificationStore: ObservableObject {
         }
 
         // Session-allow short-circuit: tool already approved by "Always" earlier
-        // in this Claude session. No chime — overlay isn't surfacing.
+        // in this Claude session. Auto-approve without surfacing — and leave the
+        // pill (the user didn't act on it).
         if let sid = req.sessionId, let tool = req.toolName,
            sessionAllows[sid]?.contains(tool) == true {
             return DecisionHandle(task: Task {
@@ -296,12 +301,16 @@ final class NotificationStore: ObservableObject {
         }
 
         // If the terminal session is already frontmost, the user sees Claude's
-        // native prompt — defer to it instantly. No chime; overlay doesn't open.
+        // native prompt — defer to it instantly, and clear the pill since they're
+        // right there. No chime; overlay doesn't open.
         if isTerminalFocused(req: req) {
+            pending.removeAll { $0.key == key }
             return DecisionHandle(task: Task {
                 PermissionResponse(decision: "ask", reason: "session focused")
             })
         }
+        // A surfacing permission supersedes the pill (enqueue does the removal
+        // when the overlay opens, below).
 
         let id = req.id
         let task = Task<PermissionResponse, Never> {
@@ -366,6 +375,10 @@ final class NotificationStore: ObservableObject {
     /// the overlay. For non-permission kinds there's no continuation, so this
     /// degrades to a plain dismiss.
     func jumpResolve(id: String) {
+        // Raising the target terminal fires an app-activation that the pending
+        // watcher would otherwise act on — suppress it so jumping one session
+        // doesn't sweep away unrelated sessions' pills.
+        suppressFocusSweep()
         if let cont = pendingDecisions.removeValue(forKey: id) {
             cont.resume(returning: PermissionResponse(decision: "ask", reason: "jumped to session"))
         }
@@ -406,8 +419,18 @@ final class NotificationStore: ObservableObject {
     /// Click on a pill: jump to the session's terminal and clear it.
     func jumpPending(key: String) {
         guard let action = pending.first(where: { $0.key == key }) else { return }
+        // Suppress the activation sweep the focus triggers, so jumping this pill
+        // can't also clear other sessions' pills.
+        suppressFocusSweep()
         SessionFocuser.focus(req: action.req)
         pending.removeAll { $0.key == key }
+    }
+
+    /// The user submitted a prompt in this session (UserPromptSubmit hook) —
+    /// they're clearly looking at it, so drop its pill. Deterministic fallback
+    /// for when the tmux focus watcher can't tell. Scoped to this session's key.
+    func markSessionActive(_ req: NotifyRequest) {
+        pending.removeAll { $0.key == PendingAction.key(for: req) }
     }
 
     // MARK: - pending focus watcher
@@ -418,6 +441,14 @@ final class NotificationStore: ObservableObject {
 
     private var watchTimer: Timer?
     private var activationObserver: NSObjectProtocol?
+
+    /// Briefly muffles the focus sweep after a programmatic jump: focusing the
+    /// target terminal raises an app-activation that would otherwise make the
+    /// watcher re-evaluate — and possibly clear — every other pill of that app.
+    private var focusSweepSuppressedUntil = Date.distantPast
+    private func suppressFocusSweep() {
+        focusSweepSuppressedUntil = Date().addingTimeInterval(1.5)
+    }
 
     func startPendingWatcher() {
         guard activationObserver == nil else { return }
@@ -458,38 +489,30 @@ final class NotificationStore: ObservableObject {
     }
 
     private func checkPendingFocus() {
-        guard !pending.isEmpty else { return }
+        // Conservative by design: a pill is auto-cleared ONLY on a *confirmed*
+        // tmux pane focus. We deliberately do NOT remove on:
+        //   - isPaneFocused == nil  (transient tmux failure OR pane gone) — a
+        //     hiccup must never silently delete a pill the user didn't touch.
+        //   - title-substring heuristics — they collide across same-named
+        //     projects and clear unrelated sessions.
+        // Non-tmux pills and gone panes rely on explicit signals instead: ✕,
+        // pill-click, a newer session event, or UserPromptSubmit (/active).
+        guard !pending.isEmpty, Date() >= focusSweepSuppressedUntil else { return }
         let front = NSWorkspace.shared.frontmostApplication
-        let candidates = pending.filter { matchesFrontApp($0.req, front) }
+        let candidates = pending.filter {
+            matchesFrontApp($0.req, front) && TmuxFocuser.target(from: $0.req) != nil
+        }
         guard !candidates.isEmpty else { return }
-        let frontPid = front?.processIdentifier
 
         // tmux checks shell out — keep them off the main thread.
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            var visited: [String] = []
-            var dead: [String] = []
-            for action in candidates {
-                if TmuxFocuser.target(from: action.req) != nil {
-                    switch TmuxFocuser.isPaneFocused(req: action.req) {
-                    case .some(true): visited.append(action.key)
-                    case .none:       dead.append(action.key)   // pane gone
-                    case .some(false): break
-                    }
-                }
-            }
-            let toRemoveOffMain = visited + dead
+            let visited = candidates
+                .filter { TmuxFocuser.isPaneFocused(req: $0.req) == true }
+                .map(\.key)
+            guard !visited.isEmpty else { return }
+            let toRemove = Set(visited)
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                var toRemove = Set(toRemoveOffMain)
-                // Non-tmux fallback: title heuristics (main-thread AX).
-                for action in candidates where TmuxFocuser.target(from: action.req) == nil {
-                    if let pid = frontPid,
-                       self.isSessionWindowFocused(req: action.req, pid: pid) {
-                        toRemove.insert(action.key)
-                    }
-                }
-                guard !toRemove.isEmpty else { return }
-                self.pending.removeAll { toRemove.contains($0.key) }
+                self?.pending.removeAll { toRemove.contains($0.key) }
             }
         }
     }

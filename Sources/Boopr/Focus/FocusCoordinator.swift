@@ -16,6 +16,7 @@ enum FocusCoordinator {
     private static let raisers: [WindowRaiser] = [
         GhosttyRaiser(),
         ITerm2Raiser(),
+        AppleTerminalRaiser(),
         MarkerAXRaiser(),
         TitleAXRaiser(),
         AppActivationRaiser(),

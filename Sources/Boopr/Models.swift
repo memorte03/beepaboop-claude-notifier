@@ -25,6 +25,8 @@ struct NotifyRequest: Codable, Sendable, Identifiable {
     var terminalPid: Int?
     var terminalApp: String?
     var windowTitle: String?
+    var tty: String?           // controlling pty (e.g. "/dev/ttys017") — lets the
+                               // non-tmux Ghostty raiser mark + focus the exact tab
     var tmuxSession: String?
     var tmuxPane: String?      // pane id, e.g. "%4" — stable for the server's lifetime
     var tmuxWindowId: String?  // tmux window id, e.g. "@2"
@@ -37,7 +39,7 @@ struct NotifyRequest: Codable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, kind, repoName, branch, cwd, sessionId, title, context
-        case toolName, actions, terminalPid, terminalApp, windowTitle, tmuxSession
+        case toolName, actions, terminalPid, terminalApp, windowTitle, tty, tmuxSession
         case tmuxPane, tmuxWindowId, tmuxSocket, tmuxBin
         case diffPreview
     }

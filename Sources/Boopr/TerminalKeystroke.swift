@@ -10,14 +10,14 @@ import Foundation
 enum TerminalKeystroke {
     /// `keyDigit` is "1" / "2" matching Claude Code's numbered prompt.
     static func sendDigit(_ keyDigit: String, to req: NotifyRequest) {
-        // tmux path: deliver straight to the captured pane. Exact target, no
-        // focus dance, no Space switching, no Accessibility needed.
-        if TmuxFocuser.sendKeys([keyDigit, "Enter"], to: req) { return }
+        // Multiplexer path: deliver straight to the captured pane. Exact target,
+        // no focus dance, no Space switching, no Accessibility needed.
+        if FocusCoordinator.sendKeys([keyDigit, "Enter"], to: req) { return }
 
         // Fallback: blind-type via System Events into whatever we managed to
         // focus. First make sure the right terminal/window is up front; macOS
         // will also switch Spaces when we activate the app.
-        SessionFocuser.focus(req: req)
+        FocusCoordinator.focus(req: req)
 
         // Wait for the focus + Space-switch to land before sending the key.
         // 150ms is enough for cross-Space transitions; SSE on the same Space

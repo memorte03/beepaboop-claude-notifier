@@ -114,10 +114,14 @@ enum HookContext {
         return r.code == 0 ? r.out.trimmingCharacters(in: .whitespacesAndNewlines) : ""
     }
 
-    /// Identify the terminal hosting this hook: (pid, bundle id, window title).
-    /// Bundle id from env fingerprints first (these survive tmux/screen), then a
-    /// walk up the process tree. PID is best-effort (empty under tmux).
-    static func terminalInfo() -> (pid: String, app: String, title: String) {
+    /// Identify the terminal hosting this hook: (pid, bundle id, window title,
+    /// controlling tty). Bundle id from env fingerprints first (these survive
+    /// tmux/screen), then a walk up the process tree. PID and tty are
+    /// best-effort: the hook itself is often spawned detached (no controlling
+    /// terminal), so the tty is recovered from the first ancestor that still owns
+    /// one (the shell that launched Claude). Used to mark + focus the exact
+    /// terminal tab in the non-tmux case.
+    static func terminalInfo() -> (pid: String, app: String, title: String, tty: String) {
         func envSet(_ keys: String...) -> Bool { keys.contains { !(env[$0] ?? "").isEmpty } }
 
         var bundleId = ""
@@ -138,9 +142,17 @@ enum HookContext {
         }
 
         var termPid = ""
+        var controllingTty = ""
         let ps = "/bin/ps"
         var pid = Int(getppid())
         while pid > 1 {
+            // Recover the controlling tty from the first ancestor that still owns
+            // one (the hook is usually detached). "??" means no controlling tty.
+            if controllingTty.isEmpty {
+                let t = Proc.run(ps, ["-p", String(pid), "-o", "tty="]).out
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty, !t.hasPrefix("?") { controllingTty = "/dev/" + t }
+            }
             let comm = Proc.run(ps, ["-p", String(pid), "-o", "comm="]).out
                 .replacingOccurrences(of: " ", with: "")
             let lower = comm.lowercased()
@@ -159,7 +171,7 @@ enum HookContext {
 
         var title = env["ITERM_SESSION_ID"] ?? ""
         if title.isEmpty, let pwd = env["PWD"], !pwd.isEmpty { title = (pwd as NSString).lastPathComponent }
-        return (termPid, bundleId, title)
+        return (termPid, bundleId, title, controllingTty)
     }
 
     /// tmux identity: (session, pane, window id, socket, binary path).
@@ -223,6 +235,7 @@ enum HookContext {
             terminalPid: Int(term.pid),
             terminalApp: opt(term.app),
             windowTitle: opt(term.title),
+            tty: opt(term.tty),
             tmuxSession: opt(tmux.session),
             tmuxPane: opt(tmux.pane),
             tmuxWindowId: opt(tmux.window),

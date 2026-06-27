@@ -68,8 +68,8 @@ enum TmuxFocuser {
             // Ghostty ≥1.3 has AppleScript: unlike the AX window list, it sees
             // terminals on every Space, and `focus` raises the right window
             // natively. Identification still uses the title marker (the tty
-            // property only lands in 1.4).
-            if bundleID == "com.mitchellh.ghostty", ghosttyRaise(clientTty: tty) {
+            // property only lands in 1.4). Shared with the non-tmux path.
+            if bundleID == GhosttyControl.bundleID, GhosttyControl.focusTab(tty: tty) {
                 return
             }
             guard let pid = terminalPid else {
@@ -176,97 +176,6 @@ enum TmuxFocuser {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - window raising (Ghostty AppleScript)
-
-    /// Identify the Ghostty terminal showing `clientTty` by writing a title
-    /// marker to the tty, then find + focus it via the scripting interface
-    /// introduced in Ghostty 1.3 and restore the original title. Returns
-    /// false on older Ghostty or denied Automation permission — callers fall
-    /// back to the AX path.
-    private static func ghosttyRaise(clientTty: String) -> Bool {
-        let before = ghosttyTerminals()
-        guard !before.isEmpty else { return false }
-
-        let nonce = "cn-focus-\(UUID().uuidString.prefix(8))"
-        guard writeTitle(nonce, toTty: clientTty) else { return false }
-
-        var focusedID: String?
-        for _ in 0..<8 {
-            usleep(60_000)
-            if let id = ghosttyFocusMarked(nonce) { focusedID = id; break }
-        }
-
-        guard let id = focusedID else {
-            // Marker stuck on a title we couldn't find (terminal busy?) —
-            // overwrite with something sane since we can't know the original.
-            _ = writeTitle("tmux", toTty: clientTty)
-            NSLog("TmuxFocuser: Ghostty AppleScript marker \(nonce) not found")
-            return false
-        }
-        if let original = before.first(where: { $0.id == id })?.name {
-            _ = writeTitle(original, toTty: clientTty)
-        }
-        NSLog("TmuxFocuser: Ghostty AppleScript focused terminal \(id) (tty \(clientTty))")
-        return true
-    }
-
-    /// (id, title) of every Ghostty terminal, across all windows and Spaces.
-    /// Empty on pre-1.3 Ghostty or when Automation permission is denied.
-    private static func ghosttyTerminals() -> [(id: String, name: String)] {
-        let script = """
-        tell application id "com.mitchellh.ghostty"
-            set out to ""
-            repeat with i from 1 to (count of terminals)
-                set t to terminal i
-                set out to out & (get id of t) & "\u{1F}" & (get name of t) & linefeed
-            end repeat
-            return out
-        end tell
-        """
-        guard let out = runAppleScript(script) else { return [] }
-        return out.split(separator: "\n").compactMap { line in
-            let parts = line.components(separatedBy: "\u{1F}")
-            guard parts.count >= 2 else { return nil }
-            return (parts[0], parts[1])
-        }
-    }
-
-    /// Focus the Ghostty terminal whose title contains `marker`; returns its
-    /// stable id, or nil when nothing matches (yet).
-    private static func ghosttyFocusMarked(_ marker: String) -> String? {
-        let script = """
-        tell application id "com.mitchellh.ghostty"
-            repeat with i from 1 to (count of terminals)
-                set t to terminal i
-                if (get name of t) contains "\(marker)" then
-                    focus t
-                    activate
-                    return get id of t
-                end if
-            end repeat
-        end tell
-        return ""
-        """
-        guard let out = runAppleScript(script), !out.isEmpty else { return nil }
-        return out
-    }
-
-    private static func runAppleScript(_ source: String) -> String? {
-        // NSAppleScript is main-thread only. Callers are always off-main (the
-        // raise/focus work runs on a utility queue); guard anyway so a future
-        // main-thread caller runs inline instead of dead-locking on main.sync.
-        func run() -> String? {
-            var error: NSDictionary?
-            let out = NSAppleScript(source: source)?.executeAndReturnError(&error)
-            if let error { NSLog("TmuxFocuser: AppleScript error: \(error)") }
-            return out?.stringValue
-        }
-        if Thread.isMainThread { return run() }
-        var result: String?
-        DispatchQueue.main.sync { result = run() }
-        return result
-    }
-
     // MARK: - window raising (title-marker + AX)
 
     private static func activateApp(pid: pid_t?) {
@@ -283,7 +192,7 @@ enum TmuxFocuser {
         NSLog("TmuxFocuser: raising via tty \(clientTty); \(before.count) AX windows visible: \(before.map(\.title))")
 
         let nonce = "cn-focus-\(UUID().uuidString.prefix(8))"
-        guard writeTitle(nonce, toTty: clientTty) else {
+        guard RaiseSupport.writeTitle(nonce, toTty: clientTty) else {
             NSLog("TmuxFocuser: writing title marker to \(clientTty) failed — activating app")
             activateApp(pid: appPid)
             return
@@ -305,7 +214,7 @@ enum TmuxFocuser {
             // overwrite it with something sane since we can't restore what we
             // never saw.
             NSLog("TmuxFocuser: marker \(nonce) not found among AX windows \(windowTitles(axApp).map(\.title)) — activating app")
-            _ = writeTitle("tmux", toTty: clientTty)
+            _ = RaiseSupport.writeTitle("tmux", toTty: clientTty)
             activateApp(pid: appPid)
             return
         }
@@ -317,7 +226,7 @@ enum TmuxFocuser {
 
         // Restore the pre-marker title — tmux won't (set-titles is usually off).
         if let original = before.first(where: { CFEqual($0.window, window) })?.title {
-            _ = writeTitle(original, toTty: clientTty)
+            _ = RaiseSupport.writeTitle(original, toTty: clientTty)
         }
 
         // Re-raise once the app activation settles; cheap insurance for
@@ -335,23 +244,6 @@ enum TmuxFocuser {
             var t: CFTypeRef?
             AXUIElementCopyAttributeValue(w, kAXTitleAttribute as CFString, &t)
             return (w, (t as? String) ?? "")
-        }
-    }
-
-    /// Writes an OSC 2 (set window title) escape sequence directly to a tty
-    /// device. This reaches the outer terminal without tmux in the way — the
-    /// same mechanism tmux's own `set-titles` uses.
-    private static func writeTitle(_ title: String, toTty path: String) -> Bool {
-        let fd = open(path, O_WRONLY | O_NOCTTY | O_NONBLOCK)
-        guard fd >= 0 else { return false }
-        defer { close(fd) }
-        // Strip control bytes (incl. the OSC terminators ESC/BEL) so a restored
-        // window title can't re-inject terminal escape sequences.
-        let clean = String(title.unicodeScalars.filter { $0.value >= 0x20 })
-        let seq = "\u{1B}]2;\(clean)\u{07}"
-        let bytes = Array(seq.utf8)
-        return bytes.withUnsafeBufferPointer { buf in
-            write(fd, buf.baseAddress, buf.count) == buf.count
         }
     }
 }

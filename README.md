@@ -21,10 +21,39 @@ deny right there, see the diff, and jump straight to the session.
 
 - 🔔 **On-screen alerts** the moment Claude Code finishes, waits, or asks permission — wherever you are.
 - ✅ **Approve / Deny inline**, with a diff preview for file edits — no window switching.
-- 🎯 **Jump to session** — one click focuses the exact terminal window and tmux pane.
+- 🎯 **Jump to session** — one click focuses the exact terminal window, tab, and tmux pane (Ghostty, iTerm2, Apple Terminal), even across Spaces.
 - 📌 **Missed-action pills** — notifications you don't catch wait at the top of the screen until you deal with them.
 - 🖼️ **Per-project icons** — give each project its own logo so you know what fired at a glance.
-- 🔊 **Subtle chimes** per event kind, all toggleable.
+- 🔊 **Subtle chimes** per event kind, all toggleable — they still sound when the terminal is frontmost, in case you've stepped away.
+
+## Supported terminals
+
+Notifications, pills, and Approve/Deny work in **any** terminal — they're
+independent of where Claude runs. The table below is specifically about
+**jump-to-session** (the "↗" button / clicking a pill), which has to find and
+raise the right window.
+
+| Terminal | Jump to exact tab/pane | With tmux |
+|---|---|---|
+| **Ghostty** 1.3+ | ✅ | ✅ |
+| **iTerm2** | ✅ | ✅ |
+| **Apple Terminal** | ✅ | ✅ |
+| Other terminals (kitty, WezTerm, Alacritty, Warp, …) | ⚠️ best-effort¹ | ⚠️ best-effort¹ |
+
+¹ For terminals without a dedicated adapter, Boopr falls back to raising the
+window by title/marker, and finally to plain app activation — so you land in the
+right app, but not always the exact tab.
+
+**tmux** is fully supported for the three terminals above — Boopr selects the
+exact pane and raises the terminal client window showing it, even when the same
+tmux server is attached from several terminals at once. (It identifies the real
+terminal from the tmux client, not from environment variables, which a shared
+tmux server makes unreliable.)
+
+Jump-to-session needs **Accessibility** and, for the AppleScript-driven terminals
+(Ghostty/iTerm2/Apple Terminal), **Automation** permission for each — macOS
+prompts on first use. Want another terminal supported? Adapters are small and
+additive — open an issue or PR.
 
 ## Installation
 
@@ -32,7 +61,7 @@ deny right there, see the diff, and jump straight to the session.
 
 - macOS 14 (Sonoma) or newer
 - [Claude Code](https://claude.com/claude-code)
-- *Optional, for the best jump-to-session:* tmux + [Ghostty](https://ghostty.org) 1.3+
+- *For exact jump-to-session:* Ghostty 1.3+, iTerm2, or Apple Terminal (with or without tmux) — see [Supported terminals](#supported-terminals)
 
 ### Download the `.dmg` (recommended)
 
@@ -87,8 +116,9 @@ and packaging/signing helpers in `scripts/`.
 ## Contributing
 
 Issues and pull requests are welcome — bug reports, feature ideas, and
-terminal/Ghostty compatibility notes especially. Please open an issue to discuss
-anything substantial before a large PR.
+**new terminal adapters** especially (they're small and additive; see
+`Sources/Boopr/Focus/`). Please open an issue to discuss anything substantial
+before a large PR.
 
 ## License
 

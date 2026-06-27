@@ -168,10 +168,12 @@ final class NotificationStore: ObservableObject {
         // it supersedes the pill: the live overlay replaces it, re-demoting with
         // newer content on timeout if still unattended.
         pending.removeAll { $0.key == PendingAction.key(for: req) }
-        // Chime is coupled to the overlay opening: stay silent when we're
-        // short-circuiting (terminal focused, etc.).
-        if isTerminalFocused(req: req) { return }
+        // Always chime — a frontmost terminal window doesn't prove the user is
+        // at the machine (they may have stepped away), so the audio cue still
+        // matters. Only the visual overlay is suppressed when they're
+        // demonstrably at the session.
         chime.play(for: req.kind)
+        if isTerminalFocused(req: req) { return }
         if current == nil {
             current = req
             scheduleTimers(for: req)
@@ -302,8 +304,10 @@ final class NotificationStore: ObservableObject {
 
         // If the terminal session is already frontmost, the user sees Claude's
         // native prompt — defer to it instantly, and clear the pill since they're
-        // right there. No chime; overlay doesn't open.
+        // right there. Still chime (they may have stepped away from a frontmost
+        // terminal); only the overlay is suppressed.
         if isTerminalFocused(req: req) {
+            chime.play(for: req.kind)
             pending.removeAll { $0.key == key }
             return DecisionHandle(task: Task {
                 PermissionResponse(decision: "ask", reason: "session focused")
